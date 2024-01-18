@@ -4,9 +4,7 @@
 
 This is a easy open-source text editor repository.
 
-<br>
 <hr>
-<br>
 
 ## Build
 
