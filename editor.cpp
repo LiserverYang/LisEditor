@@ -13,6 +13,7 @@
  * @anchor Liserver-Yang
  */
 
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -475,6 +476,20 @@ Buffer的非成员渲染函数
 */
 void print(Buffer &buf)
 {
+    /*
+     SCREEN:
+
+     [Middle]BufferName[/Middle] <- Top
+     1 Code
+     2 Code
+     3 Code
+     4 Code                      <- Middle
+     5 Code
+     6 Code
+     ...
+     [Middle]line[0/0]  col[0/0][/Middle] <- Buttom
+     */
+
     cls();                                                // 清空屏幕
     move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), 0, 0); // 设置输出光标
 
@@ -629,20 +644,6 @@ void exit_function tick_loop(Buffer &buf)
 int exit_function main(int argc, const char **argv)
 {
     // Text editor
-
-    /*
-     SCREEN:
-
-     [Middle]BufferName[/Middle] <- Top
-     1 Code
-     2 Code
-     3 Code
-     4 Code                      <- Middle
-     5 Code
-     6 Code
-     ...
-     [Middle]line[0/0]  col[0/0][/Middle] <- Buttom
-     */
 
     // 关闭io同步提升渲染时间
     std::ios::sync_with_stdio(0);
