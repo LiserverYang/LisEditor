@@ -395,9 +395,6 @@ public:
             } });
 
         _io.write(save_str);
-
-        // 在保存后需要主动同步 
-        sync();
     }
 
     inline std::vector<WCharList> &getbuffer() { return text_buffer; }
@@ -543,6 +540,7 @@ void exit_function tick_loop(Buffer &buf)
             buf.gety() += 1;
         }
         // 如果是特殊字符
+        else
         {
             switch (key)
             {
@@ -570,6 +568,13 @@ void exit_function tick_loop(Buffer &buf)
                     remove(buf.getbuffer()[buf.getx()], buf.gety() - 1);
                     buf.gety() -= 1;
                 }
+                break;
+            case 9: // TAB
+                for(int i = 0; i < 4; i++)
+                {
+                    buf.getbuffer()[buf.getx()].push_back(' ');
+                }
+                buf.gety() += 4;
                 break;
             default: // 不关注的特殊键
                 break;
