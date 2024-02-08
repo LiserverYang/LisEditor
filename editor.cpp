@@ -13,11 +13,12 @@
  * @anchor Liserver-Yang
  */
 
-#include <iostream>
+#include <io.h>
+#include <cmath>
 #include <vector>
 #include <string>
-#include <io.h>
 #include <conio.h>
+#include <iostream>
 #include <Windows.h>
 
 // 对[std::string]的别称[str]
@@ -31,6 +32,9 @@ using str = std::string;
 
 // 按键输入后处理文字的函数
 #define key_function
+
+// 行号的最大值
+int max_line_size = 1;
 
 /*
 获取两个对象之中最大值
@@ -61,7 +65,6 @@ void for_each(A begin, A end, B func)
         func(*it);
     }
 }
-
 
 /*
 清空屏幕
@@ -255,6 +258,19 @@ public:
     }
 };
 
+/*
+比较函数
+*/
+bool operator==(PairWChar a, PairWChar b)
+{
+    return a.ch == b.ch;
+}
+
+bool operator!=(PairWChar a, PairWChar b)
+{
+    return a.ch != b.ch;
+}
+
 using WCharList = std::vector<PairWChar>;
 
 /*
@@ -368,6 +384,8 @@ public:
         {
             text_buffer.emplace_back();
         }
+
+        max_line_size = std::to_string(text_buffer.size()).size();
     }
 
     /*
@@ -474,6 +492,26 @@ void move_mouse_to(HANDLE handle, int x, int y)
 #define is_curt(v) (v < 0)
 
 /*
+格式化输出数字，按照宽度
+*/
+inline void wint_opt(int size, std::wint_t value)
+{
+    int vsize = std::to_wstring(value).size();
+
+    if (vsize > size)
+    {
+        std::wcout << std::to_wstring(value);
+    }
+
+    for (int i = 0; i < size - vsize; i++)
+    {
+        std::wcout << ' ';
+    }
+
+    std::wcout << std::to_wstring(value);
+}
+
+/*
 Buffer的非成员渲染函数
 */
 void print(Buffer &buf)
@@ -511,7 +549,8 @@ void print(Buffer &buf)
     {
         if (rx < vec.size())
         {
-            std::wcout << rx + 1 << ' ';
+            wint_opt(max_line_size, rx + 1);
+            std::wcout << ' ';
             output(vec[rx], 0, min(vec[rx].size(), (WCharList::size_type)(config._width - 2)));
         }
         std::wcout << "\n";
@@ -547,19 +586,25 @@ inline void key_function add(Buffer &buf, int key)
 */
 void exit_function tick_loop(Buffer &buf)
 {
-    move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), buf.gety() + 2, buf.getx() + 1);
+    move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), buf.gety() + max_line_size + 1, buf.getx() + 1);
 
     // 获取输入
     int key = input();
 
     // 无输入 不更新
-    if (key == INT_NO_INPUT) { return; }
+    if (key == INT_NO_INPUT)
+    {
+        return;
+    }
 
     // 输入的是普通键
     if (!is_curt(key))
     {
         // 如果是普通字符
-        if (key >= 27) { add(buf, key); }
+        if (key >= 27)
+        {
+            add(buf, key);
+        }
         // 如果是特殊字符
         else
         {
@@ -573,29 +618,42 @@ void exit_function tick_loop(Buffer &buf)
                 buf.save();
                 break;
             case 13: // ENTER
+            {
                 buf.getbuffer().insert(buf.getbuffer().begin() + buf.getx() + 1, {0});
+
+                std::size_t tmpv = 0;
+
+                for (std::size_t i = 0; i <= buf.gety(); i++, tmpv ++)
+                {
+                    if (buf.getbuffer()[buf.getx()][i] != 32) break;
+
+                    buf.getbuffer()[buf.getx() + 1].insert(buf.getbuffer()[buf.getx() + 1].begin() + i, PairWChar(' '));
+                }
 
                 if (buf.getbuffer()[buf.getx()].size() != 0)
                 {
-                    for(std::size_t i = buf.gety(); i < buf.getbuffer()[buf.getx()].size(); i++)
+                    std::size_t count = 0;
+
+                    for (std::size_t i = buf.gety(); i < buf.getbuffer()[buf.getx()].size(); i++, count++)
                     {
                         buf.getbuffer()[buf.getx() + 1].push_back(buf.getbuffer()[buf.getx()][i]);
                     }
 
-                    for(std::size_t i = 0; i < buf.getbuffer()[buf.getx() + 1].size() - 1; i++)
+                    for (std::size_t i = 0; i < count; i++)
                     {
                         buf.getbuffer()[buf.getx()].pop_back();
                     }
                 }
-                
+
                 buf.getx() += 1;
-                buf.gety() = 0;
+                buf.gety() = tmpv;
 
                 break;
+            }
             case 8: // BACKSPACE
                 if (buf.gety() == 0 && buf.getx() > 0)
                 {
-                    for(std::size_t i = 0; i < buf.getbuffer()[buf.getx()].size(); i++)
+                    for (std::size_t i = 0; i < buf.getbuffer()[buf.getx()].size(); i++)
                     {
                         buf.getbuffer()[buf.getx() - 1].push_back(buf.getbuffer()[buf.getx()][i]);
                     }
@@ -610,7 +668,10 @@ void exit_function tick_loop(Buffer &buf)
                 }
                 break;
             case 9: // TAB
-                add(buf, 32); add(buf, 32); add(buf, 32); add(buf, 32);
+                add(buf, 32);
+                add(buf, 32);
+                add(buf, 32);
+                add(buf, 32);
                 break;
             default: // 不关注的特殊键
                 break;
@@ -626,14 +687,22 @@ void exit_function tick_loop(Buffer &buf)
             if (buf.getx() > 0)
             {
                 buf.getx() -= 1;
-                buf.gety() = min(buf.gety(), buf.getbuffer()[buf.getx()].size() - 1);
+
+                if (buf.getbuffer()[buf.getx()].size() == 0)
+                    buf.gety() = 0;
+                else
+                    buf.gety() = min(buf.gety(), buf.getbuffer()[buf.getx()].size() - 1);
             }
             break;
         case -304: // DOWN
             if (buf.getx() < (buf.getbuffer().size() - 1))
             {
                 buf.getx() += 1;
-                buf.gety() = min(buf.gety(), buf.getbuffer()[buf.getx()].size() - 1);
+                
+                if (buf.getbuffer()[buf.getx()].size() == 0)
+                    buf.gety() = 0;
+                else
+                    buf.gety() = min(buf.gety(), buf.getbuffer()[buf.getx()].size() - 1);
             }
             break;
         case -299: // LEFT
@@ -660,7 +729,7 @@ void exit_function tick_loop(Buffer &buf)
     }
 
     print(buf);
-    move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), buf.gety() + 2, buf.getx() + 1);
+    move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), buf.gety() + max_line_size + 1, buf.getx() + 1);
 }
 
 /*
@@ -670,7 +739,7 @@ int exit_function main(int argc, const char **argv)
 {
     // Text editor
 
-    // 关闭io同步提升渲染时间
+    // 关闭io同步减少渲染时间
     std::wios::sync_with_stdio(0);
     std::wcin.tie(0);
     std::wcout.tie(0);
@@ -701,6 +770,9 @@ int exit_function main(int argc, const char **argv)
         // 调用tick函数
         tick_loop(buf);
     }
+
+    // 结束后清空屏幕
+    cls();
 
     return 0;
 }
