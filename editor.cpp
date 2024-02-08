@@ -13,7 +13,6 @@
  * @anchor Liserver-Yang
  */
 
-
 #include <iostream>
 #include <vector>
 #include <string>
@@ -26,10 +25,12 @@ using str = std::string;
 
 // 未输入
 #define INT_NO_INPUT 0x00
-#define UNKNOW_INPUT 0x01
 
 // 该函数/函数引用的变量可能会退出程序
 #define exit_function
+
+// 按键输入后处理文字的函数
+#define key_function
 
 /*
 获取两个对象之中最大值
@@ -50,7 +51,7 @@ _Ty min(_Ty a, _Tz b)
 }
 
 /*
-函数std::for_each()的简化
+函数std::for_each的简化
 */
 template <class A, class B>
 void for_each(A begin, A end, B func)
@@ -61,14 +62,6 @@ void for_each(A begin, A end, B func)
     }
 }
 
-/* 标准地报告API错误的宏 */
-#define PERR(bSuccess, api)                                  \
-    {                                                        \
-        if (!(bSuccess))                                     \
-            printf("%s:Error %d from %s \
-on line %d\n",                                               \
-                   __FILE__, GetLastError(), api, __LINE__); \
-    }
 
 /*
 清空屏幕
@@ -76,37 +69,33 @@ on line %d\n",                                               \
 void cls(HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE))
 {
     COORD coordScreen = {0, 0}; /* 在这里我们将光标设置到正确的位置 */
-    BOOL bSuccess;
+    int bSuccess;
     DWORD cCharsWritten;
     CONSOLE_SCREEN_BUFFER_INFO csbi; /* 来获取Buffer的数据 */
     DWORD dwConSize;                 /* 当前Buffer可以容纳的字符数目 */
     /* 获取当前Buffer可以容纳的字符数量 */
     bSuccess = GetConsoleScreenBufferInfo(hConsole, &csbi);
-    PERR(bSuccess, "GetConsoleScreenBufferInfo");
     dwConSize = csbi.dwSize.X * csbi.dwSize.Y;
     /* 使用空格填充整个屏幕 */
     bSuccess = FillConsoleOutputCharacter(hConsole, (TCHAR)' ',
                                           dwConSize, coordScreen, &cCharsWritten);
-    PERR(bSuccess, "FillConsoleOutputCharacter");
     /* 获取当前文本属性 */
     bSuccess = GetConsoleScreenBufferInfo(hConsole, &csbi);
-    PERR(bSuccess, "ConsoleScreenBufferInfo");
     /* 现在相应地设置Buffer的属性 */
     bSuccess = FillConsoleOutputAttribute(hConsole, csbi.wAttributes,
                                           dwConSize, coordScreen, &cCharsWritten);
-    PERR(bSuccess, "FillConsoleOutputAttribute");
     /* 把光标放到（0, 0） */
     bSuccess = SetConsoleCursorPosition(hConsole, coordScreen);
-    PERR(bSuccess, "SetConsoleCursorPosition");
+
     return;
 }
 
 /*
 程序的所有全局配置
-_path : 编辑的文件路径
+_path     : 编辑的文件路径
 _readonly : 是否只读
-_width : 控制台宽度
-_height ： 控制台高度
+_width    : 控制台宽度
+_height   : 控制台高度
 */
 class Configtion
 {
@@ -288,11 +277,19 @@ void remove(WCharList &list, WCharList::size_type pos)
 }
 
 /*
-比较是否相等
+比较是否不等
 */
 inline bool operator!=(WCharList &lef, WCharList &rit)
 {
     return lef.begin() != rit.begin();
+}
+
+/*
+比较是否相等
+*/
+inline bool operator==(WCharList &lef, WCharList &rit)
+{
+    return lef.begin() == rit.begin();
 }
 
 /*
@@ -328,7 +325,7 @@ public:
     {
         str filev = _io.read();
 
-        std::string::size_type pos = _io.getpath().find_last_of('\\') + 1;
+        std::string::size_type pos = std::max(_io.getpath().find_last_of('\\') + 1, _io.getpath().find_last_of('/') + 1);
         _name = _io.getpath().substr(pos, _io.getpath().length() - pos);
 
         text_buffer.clear();
@@ -344,7 +341,7 @@ public:
 
             if (filev[index] == '\n' || index == filev.size() - 1)
             {
-                if (index == filev.size() && filev[index] != '\n')
+                if (index == filev.size() - 1 && filev[index] != '\n')
                 {
                     cur_v += filev[index];
                 }
@@ -365,6 +362,11 @@ public:
             {
                 cur_v += filev.at(index);
             }
+        }
+
+        if (filev.size() == 0)
+        {
+            text_buffer.emplace_back();
         }
     }
 
@@ -532,48 +534,71 @@ void print(Buffer &buf)
 bool exit_function should_exit = false;
 
 /*
+添加一个文字
+*/
+inline void key_function add(Buffer &buf, int key)
+{
+    buf.getbuffer()[buf.getx()].insert(buf.getbuffer()[buf.getx()].begin() + buf.gety(), PairWChar(key));
+    buf.gety() += 1;
+}
+
+/*
 编辑器的主体
 */
 void exit_function tick_loop(Buffer &buf)
 {
+    move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), buf.gety() + 2, buf.getx() + 1);
+
     // 获取输入
     int key = input();
 
     // 无输入 不更新
-    if (key == INT_NO_INPUT)
-    {
-        return;
-    }
+    if (key == INT_NO_INPUT) { return; }
 
     // 输入的是普通键
     if (!is_curt(key))
     {
         // 如果是普通字符
-        if (key >= 27)
-        {
-            buf.getbuffer()[buf.getx()].insert(buf.getbuffer()[buf.getx()].begin() + buf.gety(), PairWChar(key));
-            buf.gety() += 1;
-        }
+        if (key >= 27) { add(buf, key); }
         // 如果是特殊字符
         else
         {
             switch (key)
             {
-            case 3:  // CTRL + C
+            case 3: // CTRL + C
                 buf.save();
                 should_exit = true;
+                break;
             case 19: // CTRL + S
                 buf.save();
                 break;
             case 13: // ENTER
                 buf.getbuffer().insert(buf.getbuffer().begin() + buf.getx() + 1, {0});
+
+                if (buf.getbuffer()[buf.getx()].size() != 0)
+                {
+                    for(std::size_t i = buf.gety(); i < buf.getbuffer()[buf.getx()].size(); i++)
+                    {
+                        buf.getbuffer()[buf.getx() + 1].push_back(buf.getbuffer()[buf.getx()][i]);
+                    }
+
+                    for(std::size_t i = 0; i < buf.getbuffer()[buf.getx() + 1].size() - 1; i++)
+                    {
+                        buf.getbuffer()[buf.getx()].pop_back();
+                    }
+                }
+                
                 buf.getx() += 1;
                 buf.gety() = 0;
+
                 break;
             case 8: // BACKSPACE
                 if (buf.gety() == 0 && buf.getx() > 0)
                 {
-                    buf.getbuffer()[buf.getx() - 1].insert(buf.getbuffer()[buf.getx() - 1].end(), buf.getbuffer()[buf.getx()].begin(), buf.getbuffer()[buf.getx()].end());
+                    for(std::size_t i = 0; i < buf.getbuffer()[buf.getx()].size(); i++)
+                    {
+                        buf.getbuffer()[buf.getx() - 1].push_back(buf.getbuffer()[buf.getx()][i]);
+                    }
                     buf.getbuffer().erase(buf.getbuffer().begin() + buf.getx());
                     buf.getx() -= 1;
                     buf.gety() = buf.getbuffer()[buf.getx()].size() - 1;
@@ -585,11 +610,7 @@ void exit_function tick_loop(Buffer &buf)
                 }
                 break;
             case 9: // TAB
-                for(int i = 0; i < 4; i++)
-                {
-                    buf.getbuffer()[buf.getx()].push_back(' ');
-                }
-                buf.gety() += 4;
+                add(buf, 32); add(buf, 32); add(buf, 32); add(buf, 32);
                 break;
             default: // 不关注的特殊键
                 break;
@@ -622,12 +643,16 @@ void exit_function tick_loop(Buffer &buf)
             }
             break;
         case -301: // RIGHT
-            if (buf.gety() <= (buf.getbuffer()[buf.getx()].size() - 1))
+            if (buf.gety() <= (buf.getbuffer()[buf.getx()].size() - 1) && buf.getbuffer()[buf.getx()].size() != 0)
             {
                 buf.gety() += 1;
             }
             break;
         case -307: // DEL
+            if (buf.gety() < buf.getbuffer()[buf.getx()].size() - 1)
+            {
+                remove(buf.getbuffer()[buf.getx()], buf.gety());
+            }
             break;
         default: // 不关注的特殊键 无需处理
             break;
@@ -646,7 +671,7 @@ int exit_function main(int argc, const char **argv)
     // Text editor
 
     // 关闭io同步提升渲染时间
-    std::ios::sync_with_stdio(0);
+    std::wios::sync_with_stdio(0);
     std::wcin.tie(0);
     std::wcout.tie(0);
 
@@ -655,7 +680,7 @@ int exit_function main(int argc, const char **argv)
 
     // 获取宽高
     CONSOLE_SCREEN_BUFFER_INFO csbi;
-    
+
     GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
 
     config._width = csbi.srWindow.Right - csbi.srWindow.Left + 1;
