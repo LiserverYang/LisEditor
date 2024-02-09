@@ -1,25 +1,47 @@
 /*
- * 这是一个简易的文本编辑器 使用WindowsAPI、STD标准库
+ * 这是一个简易的文本编辑器 使用WindowsAPI、STL标准模板库
  * MIT 开源协议
  *
- * This is a easy open-source text editor. Using WindowsAPI and STD standard library.
+ * This is a simple text editor. Using WindowsAPI and STL standard template library.
  * MIT licence.
  *
  * 额外的编译参数 -std=c++11 -Werror
  *
  * Extra compile arguments -std=c++11 -Werror
+ * 
+ * C++版本：c++11或以上
+ * O2优化应不影响程序正常运行
+ * 
+ * C++ version: c++11 or more.
+ * O2 does not change the application run.
  *
  * @licence MIT
  * @anchor Liserver-Yang
  */
 
+#ifndef __cplusplus
+#   error This is a c++ project.
+#endif
+
 #include <io.h>
 #include <cmath>
+#include <locale>
 #include <vector>
 #include <string>
+#include <codecvt>
 #include <conio.h>
 #include <iostream>
 #include <Windows.h>
+
+#if ((__cplusplus == 201103L) || (__cplusplus == 201402L))
+#   define _enabled_cvt_
+#endif
+
+#if (__cplusplus < 201103L)
+#   define ThrowPermiss throw(NoPermissionsError)
+#else
+#   define ThrowPermiss noexcept(false)
+#endif
 
 // 对[std::string]的别称[str]
 using str = std::string;
@@ -35,6 +57,12 @@ using str = std::string;
 
 // 行号的最大值
 int max_line_size = 1;
+
+// 防止冲突
+#undef max
+#undef min
+#undef for_each
+#undef cls
 
 /*
 获取两个对象之中最大值
@@ -92,6 +120,26 @@ void cls(HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE))
 
     return;
 }
+
+#if !defined(_enabled_cvt_)
+#   undef to_wstr
+    /*
+    字符串类型转换
+    */
+    std::wstring to_wstr(const str& v)
+    {
+        std::string strLocale = setlocale(LC_ALL, "");
+        const char *chSrc = v.c_str();
+        size_t nDestSize = mbstowcs(NULL, chSrc, 0) + 1;
+        wchar_t *wchDest = new wchar_t[nDestSize];
+        wmemset(wchDest, 0, nDestSize);
+        mbstowcs(wchDest, chSrc, nDestSize);
+        std::wstring wstrResult = wchDest;
+        delete[] wchDest;
+        setlocale(LC_ALL, strLocale.c_str());
+        return wstrResult;
+    }
+#endif
 
 /*
 程序的所有全局配置
@@ -153,7 +201,11 @@ public:
     FileIO(str path) : _path(path)
     {
         // 不检查文件是否存在 但是不存在创建文件
-        fileh = CreateFile(TEXT(_path.c_str()), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_DELETE | FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+#ifdef _enabled_cvt_
+        fileh = CreateFileW(std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().from_bytes(_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_DELETE | FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+#else
+        fileh = CreateFileW(to_wstr(_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_DELETE | FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+#endif
         // 获取文件大小
         read_size();
     }
@@ -199,7 +251,7 @@ public:
     读取文件 返回字符串
     @exception NoPermissionsError
     */
-    str read() /* throw(NoPermissionsError) */ noexcept(false)
+    str read() ThrowPermiss
     {
         if (!has_readpers())
         {
@@ -229,7 +281,7 @@ public:
     覆盖式地写入
     @exception NoPermissionsError
     */
-    void write(str value) /* throw(NoPermissionsError) */ noexcept(false)
+    void write(str value) ThrowPermiss
     {
         if (!has_writepers())
         {
@@ -259,18 +311,22 @@ public:
 };
 
 /*
-比较函数
+比较两个待输出字符是否相等
 */
 bool operator==(PairWChar a, PairWChar b)
 {
     return a.ch == b.ch;
 }
 
+/*
+比较两个待输出字符是否不相等
+*/
 bool operator!=(PairWChar a, PairWChar b)
 {
     return a.ch != b.ch;
 }
 
+// 定义待输出行/缓冲行
 using WCharList = std::vector<PairWChar>;
 
 /*
@@ -486,9 +542,8 @@ void move_mouse_to(HANDLE handle, int x, int y)
     SetConsoleCursorPosition(handle, coord);
 }
 
-/*
-判断一个值是否为特殊值
-*/
+
+// 判断一个值是否为特殊值
 #define is_curt(v) (v < 0)
 
 /*
@@ -563,13 +618,12 @@ void print(Buffer &buf)
         std::wcout << ' ';
     std::wcout << bustr;
 
-    // 刷新输出缓冲区 大坑:_:
+    // 刷新输出缓冲区
     std::wcout.flush();
 }
 
-/*
-程序是否应该退出 作为主循环的退出条件
-*/
+
+// 程序是否应该退出 作为主循环的退出条件
 bool exit_function should_exit = false;
 
 /*
@@ -743,7 +797,8 @@ int exit_function main(int argc, const char **argv)
     std::wios::sync_with_stdio(0);
     std::wcin.tie(0);
     std::wcout.tie(0);
-
+    std::setlocale( LC_ALL, "chs" );
+    
     // 解析参数
     parse_args(argc, argv, config);
 
