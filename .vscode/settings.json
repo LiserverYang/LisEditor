@@ -42,6 +42,7 @@
         "streambuf": "cpp",
         "typeinfo": "cpp",
         "codecvt": "cpp",
-        "locale": "cpp"
+        "locale": "cpp",
+        "ctime": "cpp"
     }
 }

@@ -10,11 +10,11 @@ This is a easy open-source text editor repository.
 
 - Windows:
     ```shell
-    .\build.cmd
+    .\\build.cmd
     ```
     or
     ```shell
-    g++ .\editor.cpp -std=c++11 -Werror -o liseditor
+    g++ .\\editor.cpp -std=c++11 -Werror -o liseditor
     ```
 
 - MacOS or Linux:

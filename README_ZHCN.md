@@ -8,11 +8,11 @@
 
 - Windows:
     ```shell
-    .\build.cmd
+    .\\build.cmd
     ```
     或
     ```shell
-    g++ .\editor.cpp -std=c++11 -Werror -o liseditor
+    g++ .\\editor.cpp -std=c++11 -Werror -o liseditor
     ```
 
 - MacOS or Linux:

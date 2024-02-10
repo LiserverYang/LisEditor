@@ -8,10 +8,10 @@
  * 额外的编译参数 -std=c++11 -Werror
  *
  * Extra compile arguments -std=c++11 -Werror
- * 
+ *
  * C++版本：c++11或以上
  * O2优化应不影响程序正常运行
- * 
+ *
  * C++ version: c++11 or more.
  * O2 does not change the application run.
  *
@@ -20,7 +20,7 @@
  */
 
 #ifndef __cplusplus
-#   error This is a c++ project.
+#error This is a c++ project.
 #endif
 
 #include <io.h>
@@ -33,14 +33,16 @@
 #include <iostream>
 #include <Windows.h>
 
+#include "renderer/renderer.h"
+
 #if ((__cplusplus == 201103L) || (__cplusplus == 201402L))
-#   define _enabled_cvt_
+#define _enabled_cvt_
 #endif
 
 #if (__cplusplus < 201103L)
-#   define ThrowPermiss throw(NoPermissionsError)
+#define ThrowPermiss throw(NoPermissionsError)
 #else
-#   define ThrowPermiss noexcept(false)
+#define ThrowPermiss noexcept(false)
 #endif
 
 // 对[std::string]的别称[str]
@@ -122,23 +124,23 @@ void cls(HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE))
 }
 
 #if !defined(_enabled_cvt_)
-#   undef to_wstr
-    /*
-    字符串类型转换
-    */
-    std::wstring to_wstr(const str& v)
-    {
-        std::string strLocale = setlocale(LC_ALL, "");
-        const char *chSrc = v.c_str();
-        size_t nDestSize = mbstowcs(NULL, chSrc, 0) + 1;
-        wchar_t *wchDest = new wchar_t[nDestSize];
-        wmemset(wchDest, 0, nDestSize);
-        mbstowcs(wchDest, chSrc, nDestSize);
-        std::wstring wstrResult = wchDest;
-        delete[] wchDest;
-        setlocale(LC_ALL, strLocale.c_str());
-        return wstrResult;
-    }
+#undef to_wstr
+/*
+字符串类型转换
+*/
+std::wstring to_wstr(const str &v)
+{
+    std::string strLocale = setlocale(LC_ALL, "");
+    const char *chSrc = v.c_str();
+    size_t nDestSize = mbstowcs(NULL, chSrc, 0) + 1;
+    wchar_t *wchDest = new wchar_t[nDestSize];
+    wmemset(wchDest, 0, nDestSize);
+    mbstowcs(wchDest, chSrc, nDestSize);
+    std::wstring wstrResult = wchDest;
+    delete[] wchDest;
+    setlocale(LC_ALL, strLocale.c_str());
+    return wstrResult;
+}
 #endif
 
 /*
@@ -296,26 +298,11 @@ public:
 };
 
 /*
-对于每个字符的值、颜色
-*/
-class PairWChar
-{
-public:
-    wint_t ch;
-
-    PairWChar() { ch = 32; }
-    PairWChar(wint_t letter)
-    {
-        ch = letter;
-    }
-};
-
-/*
 比较两个待输出字符是否相等
 */
 bool operator==(PairWChar a, PairWChar b)
 {
-    return a.ch == b.ch;
+    return (a.ch == b.ch);
 }
 
 /*
@@ -324,6 +311,14 @@ bool operator==(PairWChar a, PairWChar b)
 bool operator!=(PairWChar a, PairWChar b)
 {
     return a.ch != b.ch;
+}
+
+/*
+字符是否是中文
+*/
+inline bool IsChineseChar(PairWChar ch)
+{
+    return ch.ch >= 0x4E00 && ch.ch <= 0x9FA5;
 }
 
 // 定义待输出行/缓冲行
@@ -336,7 +331,7 @@ void output(WCharList list, WCharList::size_type begin, WCharList::size_type end
 {
     for (WCharList::size_type i = begin; i < end; i++)
     {
-        std::wcout << (wchar_t)list[i].ch;
+        std::wcout << L"\033[" << list[i].cl << L"m" << (wchar_t)list[i].ch << "\033[0m";
     }
 }
 
@@ -539,9 +534,32 @@ void move_mouse_to(HANDLE handle, int x, int y)
     COORD coord;
     coord.X = x;
     coord.Y = y;
+
     SetConsoleCursorPosition(handle, coord);
 }
 
+/*
+移动到某个字符
+*/
+void move_to_text(Buffer &buf, int x, int y)
+{
+    int real_x = 1 + max_line_size;
+    int real_y = x + 1;
+
+    for (int i = 0; i < y; i++)
+    {
+        if (IsChineseChar(buf.getbuffer()[x][i]))
+        {
+            real_x += 2;
+        }
+        else
+        {
+            real_x += 1;
+        }
+    }
+
+    move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), real_x, real_y);
+}
 
 // 判断一个值是否为特殊值
 #define is_curt(v) (v < 0)
@@ -557,13 +575,15 @@ inline void wint_opt(int size, std::wint_t value)
     {
         std::wcout << std::to_wstring(value);
     }
-
-    for (int i = 0; i < size - vsize; i++)
+    else
     {
-        std::wcout << ' ';
-    }
+        for (int i = 0; i < size - vsize; i++)
+        {
+            std::wcout << ' ';
+        }
 
-    std::wcout << std::to_wstring(value);
+        std::wcout << std::to_wstring(value);
+    }
 }
 
 /*
@@ -622,7 +642,6 @@ void print(Buffer &buf)
     std::wcout.flush();
 }
 
-
 // 程序是否应该退出 作为主循环的退出条件
 bool exit_function should_exit = false;
 
@@ -640,7 +659,7 @@ inline void key_function add(Buffer &buf, int key)
 */
 void exit_function tick_loop(Buffer &buf)
 {
-    move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), buf.gety() + max_line_size + 1, buf.getx() + 1);
+    move_to_text(buf, buf.getx(), buf.gety());
 
     // 获取输入
     int key = input();
@@ -658,6 +677,7 @@ void exit_function tick_loop(Buffer &buf)
         if (key >= 27)
         {
             add(buf, key);
+            Renderer::rend(buf.getbuffer());
         }
         // 如果是特殊字符
         else
@@ -677,9 +697,10 @@ void exit_function tick_loop(Buffer &buf)
 
                 std::size_t tmpv = 0;
 
-                for (std::size_t i = 0; i <= buf.gety(); i++, tmpv ++)
+                for (std::size_t i = 0; i <= buf.gety(); i++, tmpv++)
                 {
-                    if (buf.getbuffer()[buf.getx()][i] != 32) break;
+                    if (buf.getbuffer()[buf.getx()][i] != 32)
+                        break;
 
                     buf.getbuffer()[buf.getx() + 1].insert(buf.getbuffer()[buf.getx() + 1].begin() + i, PairWChar(' '));
                 }
@@ -701,6 +722,8 @@ void exit_function tick_loop(Buffer &buf)
 
                 buf.getx() += 1;
                 buf.gety() = tmpv;
+
+                max_line_size = std::to_string(buf.getbuffer().size()).size();
 
                 break;
             }
@@ -752,7 +775,7 @@ void exit_function tick_loop(Buffer &buf)
             if (buf.getx() < (buf.getbuffer().size() - 1))
             {
                 buf.getx() += 1;
-                
+
                 if (buf.getbuffer()[buf.getx()].size() == 0)
                     buf.gety() = 0;
                 else
@@ -783,7 +806,7 @@ void exit_function tick_loop(Buffer &buf)
     }
 
     print(buf);
-    move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), buf.gety() + max_line_size + 1, buf.getx() + 1);
+    move_to_text(buf, buf.getx(), buf.gety());
 }
 
 /*
@@ -797,8 +820,8 @@ int exit_function main(int argc, const char **argv)
     std::wios::sync_with_stdio(0);
     std::wcin.tie(0);
     std::wcout.tie(0);
-    std::setlocale( LC_ALL, "chs" );
-    
+    std::setlocale(LC_ALL, "chs");
+
     // 解析参数
     parse_args(argc, argv, config);
 
@@ -817,6 +840,7 @@ int exit_function main(int argc, const char **argv)
     Buffer buf("New Buffer");
 
     // 第一次渲染输出。循环内渲染是惰性的。第一次不输出可能会导致一段时间内没有文字
+    Renderer::rend(buf.getbuffer());
     print(buf);
 
     // 开始主循环 主循环每次调用tick函数 直到CTRL+C退出
