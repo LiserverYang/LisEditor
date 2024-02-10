@@ -331,7 +331,7 @@ void output(WCharList list, WCharList::size_type begin, WCharList::size_type end
 {
     for (WCharList::size_type i = begin; i < end; i++)
     {
-        std::wcout << L"\033[" << list[i].cl << L"m" << (wchar_t)list[i].ch << "\033[0m";
+        std::wcout << L"\033[" << list[i].cl << L"m" << (wchar_t)list[i].ch << L"\033[0m";
     }
 }
 
@@ -544,7 +544,7 @@ void move_mouse_to(HANDLE handle, int x, int y)
 void move_to_text(Buffer &buf, int x, int y)
 {
     int real_x = 1 + max_line_size;
-    int real_y = x + 1;
+    int real_y = x;
 
     for (int i = 0; i < y; i++)
     {
@@ -558,7 +558,7 @@ void move_to_text(Buffer &buf, int x, int y)
         }
     }
 
-    move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), real_x, real_y);
+    move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), real_x, (real_y % (config._height - 2)) + 1);
 }
 
 // 判断一个值是否为特殊值
@@ -617,16 +617,16 @@ void print(Buffer &buf)
     std::wcout << buf.getname().c_str() << '\n';
 
     // MIDDLE
-    int page_x = buf.getx() / config._height;
+    int page_x = buf.getx() / (config._height - 2);
     int page_y = buf.gety() / config._width;
 
-    for (int rx = page_x; rx < page_x + config._height - 2; rx++)
+    for (int rx = 0; rx < config._height - 2; rx++)
     {
-        if (rx < vec.size())
+        if ((rx + page_x * (config._height - 2)) < vec.size())
         {
-            wint_opt(max_line_size, rx + 1);
+            wint_opt(max_line_size, rx + page_x * (config._height - 2) + 1);
             std::wcout << ' ';
-            output(vec[rx], 0, min(vec[rx].size(), (WCharList::size_type)(config._width - 2)));
+            output(vec[rx + page_x * (config._height - 2)], 0, min(vec[rx + page_x * (config._height - 2)].size(), (WCharList::size_type)(config._width - 1 - max_line_size)));
         }
         std::wcout << "\n";
     }
@@ -697,6 +697,7 @@ void exit_function tick_loop(Buffer &buf)
 
                 std::size_t tmpv = 0;
 
+                if (!buf.getbuffer()[buf.getx()].empty())
                 for (std::size_t i = 0; i <= buf.gety(); i++, tmpv++)
                 {
                     if (buf.getbuffer()[buf.getx()][i] != 32)
@@ -787,13 +788,13 @@ void exit_function tick_loop(Buffer &buf)
             {
                 buf.gety() -= 1;
             }
-            break;
+            return;
         case -301: // RIGHT
             if (buf.gety() <= (buf.getbuffer()[buf.getx()].size() - 1) && buf.getbuffer()[buf.getx()].size() != 0)
             {
                 buf.gety() += 1;
             }
-            break;
+            return;
         case -307: // DEL
             if (buf.gety() < buf.getbuffer()[buf.getx()].size() - 1)
             {
@@ -817,6 +818,7 @@ int exit_function main(int argc, const char **argv)
     // Text editor
 
     // 关闭io同步减少渲染时间
+    std::ios::sync_with_stdio(0);
     std::wios::sync_with_stdio(0);
     std::wcin.tie(0);
     std::wcout.tie(0);

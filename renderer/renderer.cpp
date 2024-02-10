@@ -56,7 +56,6 @@ void Renderer::rend(std::vector<std::vector<PairWChar>>& buffer)
     
     else if ((now_called_time - last_called_time) * 1000 / CLOCKS_PER_SEC < DELAY_TIME)
     {
-        last_called_time = now_called_time;
         return;
     }
     

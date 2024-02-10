@@ -79,11 +79,11 @@ const wchar_t Keyword[][65] = {
     L"goto",
     L"reinterpret_cast",
     L"try",
-    L"noexpect",
+    L"noexcept",
     L"operator",
 };
 
-const wchar_t Operator[25] = {
+const wchar_t Operator[26] = {
     L'+',
     L'-',
     L'*',
@@ -109,6 +109,7 @@ const wchar_t Operator[25] = {
     L']',
     L'{',
     L'}',
+    L'.'
 };
 
 /*
