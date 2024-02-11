@@ -43,7 +43,6 @@ bool is_number(wchar_t c)
 
 void Renderer::rend(std::vector<std::vector<PairWChar>>& buffer)
 {
-    // 函数防抖1.0s更新
     static clock_t last_called_time;
     static bool called = false;
 

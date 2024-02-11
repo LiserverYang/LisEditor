@@ -14,12 +14,15 @@
 
 using cus = const unsigned short;
 
+static const cus S_COLOR_RED  = 31;
+static const cus S_COLOR_BLUE = 36;
+
 namespace style
 {
-    cus S_OPERATOR_COLOR = 36;
-    cus S_STRING_COLOR   = 36;
-    cus S_NUMBER_COLOR   = 36;
-    cus S_KEYWORD_COLOR  = 31;
+    cus S_OPERATOR_COLOR = S_COLOR_BLUE;
+    cus S_STRING_COLOR   = S_COLOR_BLUE;
+    cus S_NUMBER_COLOR   = S_COLOR_BLUE;
+    cus S_KEYWORD_COLOR  = S_COLOR_RED;
 };
 
 #endif

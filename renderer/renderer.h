@@ -15,7 +15,7 @@
 
 #include "../style/style_template.h"
 
-const wchar_t Keyword[][65] = {
+const wchar_t Keyword[][66] = {
     L"asm",
     L"do",
     L"if",
@@ -81,9 +81,10 @@ const wchar_t Keyword[][65] = {
     L"try",
     L"noexcept",
     L"operator",
+    L"size_t"
 };
 
-const wchar_t Operator[26] = {
+const wchar_t Operator[] = {
     L'+',
     L'-',
     L'*',
@@ -109,7 +110,9 @@ const wchar_t Operator[26] = {
     L']',
     L'{',
     L'}',
-    L'.'
+    L'.',
+    L'$',
+    L'#'
 };
 
 /*
