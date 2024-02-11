@@ -141,6 +141,9 @@ bool is_number(wchar_t c);
 
 namespace Renderer
 {
+    /*
+    C++ renderer
+    */
     void rend(std::vector<std::vector<PairWChar>>& buffer);
 }
 

@@ -41,6 +41,9 @@ bool is_number(wchar_t c)
     return c >= L'0' && c <= L'9';
 }
 
+/*
+C++ renderer
+*/
 void Renderer::rend(std::vector<std::vector<PairWChar>>& buffer)
 {
     static clock_t last_called_time;
@@ -109,6 +112,26 @@ void Renderer::rend(std::vector<std::vector<PairWChar>>& buffer)
                     buffer[i][j].cl = style::S_OPERATOR_COLOR;
                     j++;
                 }
+
+                else if ((buffer[i][j].ch == L'/' && buffer[i][j + 1].ch == L'/'))
+                {
+                    for(std::size_t x = j; x < buffer[i].size(); x++)
+                    {
+                        buffer[i][x].cl = style::S_OPERATOR_COLOR;
+                    }
+
+                    break;
+                }
+
+                else if (buffer[i][j].ch == L'#')
+                {
+                    while(buffer[i][j].ch != L' ' && j < buffer[i].size())
+                    {
+                        buffer[i][j].cl = style::S_OPERATOR_COLOR;
+                        j++;
+                    }
+                }
+
 
                 else
                     j++;
