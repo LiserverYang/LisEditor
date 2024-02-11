@@ -586,6 +586,24 @@ inline void wint_opt(int size, std::wint_t value)
     }
 }
 
+int last_page_x = 0;
+
+/*
+更新底部
+*/
+inline void update_buttom(Buffer &buf)
+{
+    move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), 0, config._height - 1);
+
+    std::wstring bustr = L"line[" + std::to_wstring(buf.getx() + 1) + L"] " + L" col[" + std::to_wstring(buf.gety() + 1) + L"] ";
+
+    for (int i = 0; i < (config._width - bustr.size()) / 2; i++)
+        std::wcout << ' ';
+    std::wcout << bustr;
+
+    std::wcout.flush();
+}
+
 /*
 Buffer的非成员渲染函数
 */
@@ -620,13 +638,15 @@ void print(Buffer &buf)
     int page_x = buf.getx() / (config._height - 2);
     int page_y = buf.gety() / config._width;
 
+    last_page_x = page_x;
+
     for (int rx = 0; rx < config._height - 2; rx++)
     {
         if ((rx + page_x * (config._height - 2)) < vec.size())
         {
             wint_opt(max_line_size, rx + page_x * (config._height - 2) + 1);
             std::wcout << ' ';
-            output(vec[rx + page_x * (config._height - 2)], 0, min(vec[rx + page_x * (config._height - 2)].size(), (WCharList::size_type)(config._width - 1 - max_line_size)));
+            output(vec[rx + page_x * (config._height - 2)], 0, vec[rx + page_x * (config._height - 2)].size());
         }
         std::wcout << "\n";
     }
@@ -652,6 +672,13 @@ inline void key_function add(Buffer &buf, int key)
 {
     buf.getbuffer()[buf.getx()].insert(buf.getbuffer()[buf.getx()].begin() + buf.gety(), PairWChar(key));
     buf.gety() += 1;
+
+    move_to_text(buf, buf.getx(), 0);
+    output(buf.getbuffer()[buf.getx()], 0, buf.getbuffer()[buf.getx()].size());
+
+    std::wcout.flush();
+
+    update_buttom(buf);
 }
 
 /*
@@ -678,6 +705,7 @@ void exit_function tick_loop(Buffer &buf)
         {
             add(buf, key);
             Renderer::rend(buf.getbuffer());
+            return;
         }
         // 如果是特殊字符
         else
@@ -698,13 +726,13 @@ void exit_function tick_loop(Buffer &buf)
                 std::size_t tmpv = 0;
 
                 if (!buf.getbuffer()[buf.getx()].empty())
-                for (std::size_t i = 0; i <= buf.gety(); i++, tmpv++)
-                {
-                    if (buf.getbuffer()[buf.getx()][i] != 32)
-                        break;
+                    for (std::size_t i = 0; i <= buf.gety(); i++, tmpv++)
+                    {
+                        if (buf.getbuffer()[buf.getx()][i] != 32)
+                            break;
 
-                    buf.getbuffer()[buf.getx() + 1].insert(buf.getbuffer()[buf.getx() + 1].begin() + i, PairWChar(' '));
-                }
+                        buf.getbuffer()[buf.getx() + 1].insert(buf.getbuffer()[buf.getx() + 1].begin() + i, PairWChar(' '));
+                    }
 
                 if (buf.getbuffer()[buf.getx()].size() != 0)
                 {
@@ -743,6 +771,21 @@ void exit_function tick_loop(Buffer &buf)
                 {
                     remove(buf.getbuffer()[buf.getx()], buf.gety() - 1);
                     buf.gety() -= 1;
+
+                    move_to_text(buf, buf.getx(), 0);
+
+                    output(buf.getbuffer()[buf.getx()], 0, buf.getbuffer()[buf.getx()].size());
+
+                    for (int i = buf.getbuffer()[buf.getx()].size(); i < config._width - 1 - max_line_size; i++)
+                    {
+                        std::wcout << ' ';
+                    }
+
+                    std::wcout.flush();
+
+                    update_buttom(buf);
+
+                    return;
                 }
                 break;
             case 9: // TAB
@@ -750,6 +793,7 @@ void exit_function tick_loop(Buffer &buf)
                 add(buf, 32);
                 add(buf, 32);
                 add(buf, 32);
+                return;
                 break;
             default: // 不关注的特殊键
                 break;
@@ -771,6 +815,11 @@ void exit_function tick_loop(Buffer &buf)
                 else
                     buf.gety() = min(buf.gety(), buf.getbuffer()[buf.getx()].size() - 1);
             }
+            if (buf.getx() / (config._height - 2) == last_page_x)
+            {
+                update_buttom(buf);
+                return;
+            }
             break;
         case -304: // DOWN
             if (buf.getx() < (buf.getbuffer().size() - 1))
@@ -782,18 +831,26 @@ void exit_function tick_loop(Buffer &buf)
                 else
                     buf.gety() = min(buf.gety(), buf.getbuffer()[buf.getx()].size() - 1);
             }
+            if (buf.getx() / (config._height - 2) == last_page_x)
+            {
+                update_buttom(buf);
+                return;
+            }
             break;
         case -299: // LEFT
             if (buf.gety() > 0)
             {
                 buf.gety() -= 1;
             }
+
+            update_buttom(buf);
             return;
         case -301: // RIGHT
             if (buf.gety() <= (buf.getbuffer()[buf.getx()].size() - 1) && buf.getbuffer()[buf.getx()].size() != 0)
             {
                 buf.gety() += 1;
             }
+            update_buttom(buf);
             return;
         case -307: // DEL
             if (buf.gety() < buf.getbuffer()[buf.getx()].size() - 1)
