@@ -23,15 +23,13 @@
 #error This is a c++ project.
 #endif
 
-#include <io.h>
 #include <cmath>
 #include <locale>
 #include <vector>
 #include <string>
+#include <cstring>
 #include <codecvt>
-#include <conio.h>
 #include <iostream>
-#include <Windows.h>
 
 #include "renderer/renderer.h"
 
@@ -43,6 +41,17 @@
 #define ThrowPermiss throw(NoPermissionsError)
 #else
 #define ThrowPermiss noexcept(false)
+#endif
+
+#if defined(_WIN32) || defined(_WIN64)
+#define _windows_
+#include <io.h>
+#include <conio.h>
+#include <Windows.h>
+#else
+#include <sys/io.h>
+#include <curses.h>
+#include <fstream>
 #endif
 
 // 对[std::string]的别称[str]
@@ -96,6 +105,8 @@ void for_each(A begin, A end, B func)
     }
 }
 
+#if defined(_windows_)
+
 /*
 清空屏幕
 */
@@ -122,6 +133,18 @@ void cls(HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE))
 
     return;
 }
+
+#else
+
+/*
+清空屏幕
+*/
+void cls()
+{
+    clear();
+}
+
+#endif
 
 #if !defined(_enabled_cvt_)
 #undef to_wstr
@@ -154,13 +177,13 @@ class Configtion
 {
 public:
     // 获取到的文件路径
-    str _path = ".\\a.txt";
+    str _path = "./a.txt";
     // 是否只读
     bool _readonly = false;
     // 控制台的宽高
     int _width = 0, _height = 0;
 
-    Configtion(str path = ".\\a.txt", bool readonly = false) : _path(path), _readonly(readonly) {}
+    Configtion(str path = "./a.txt", bool readonly = false) : _path(path), _readonly(readonly) {}
 };
 
 // 全局地配置对象
@@ -193,30 +216,55 @@ class FileIO
 private:
     // 文件路径
     str _path = "";
+#ifdef _windows_
     // 通过CreateFile函数获取的文件句柄
     HANDLE fileh;
     // 通过read_size函数获取的文件大小
     LARGE_INTEGER size;
+#endif
 
 public:
     FileIO() = delete;
     FileIO(str path) : _path(path)
     {
         // 不检查文件是否存在 但是不存在创建文件
+#ifdef _windows_
+
 #ifdef _enabled_cvt_
         fileh = CreateFileW(std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().from_bytes(_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_DELETE | FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 #else
         fileh = CreateFileW(to_wstr(_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_DELETE | FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 #endif
+
         // 获取文件大小
         read_size();
+#else
+
+        std::ifstream file(path);
+        if (!file.is_open())
+        {
+            std::ofstream newFile(path);
+            if (newFile.is_open())
+            {
+                newFile.close();
+            }
+        }
+        else
+        {
+            file.close();
+        }
+
+#endif
     }
 
     ~FileIO()
     {
-        CloseHandle(fileh);
+#ifdef _windows_
+       CloseHandle(fileh);
+#endif
     }
 
+#ifdef _windows_
     /*
     检查文件是否存在
     */
@@ -241,6 +289,36 @@ public:
         return access(_path.c_str(), 0x04) == 0;
     }
 
+#else
+
+    /*
+    检查文件是否存在
+    */
+    bool check() noexcept
+    {
+        return true;
+    }
+
+    /*
+    检查文件是否有读权限
+    */
+    inline bool has_readpers() noexcept
+    {
+        return true;
+    }
+
+    /*
+    检查文件是否有写权限
+    */
+    inline bool has_writepers() noexcept
+    {
+        return true;
+    }
+
+
+#endif
+
+#ifdef _windows_
     /*
     读取文件大小
     */
@@ -248,7 +326,9 @@ public:
     {
         GetFileSizeEx(fileh, &size);
     }
+#endif
 
+#ifdef _windows_
     /*
     读取文件 返回字符串
     @exception NoPermissionsError
@@ -278,7 +358,38 @@ public:
 
         return content;
     }
+#else
+    /*
+    读取文件 返回字符串
+    @exception NoPermissionsError
+    */
+    str read() ThrowPermiss
+    {
+        if (!has_readpers())
+        {
+            throw NoPermissionsError(_path);
+        }
 
+        std::ifstream file(_path);
+        std::string content;
+
+        if (file.is_open())
+        {
+            // 读取文件内容
+            content.assign((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
+            file.close();
+        }
+        else
+        {
+            // 文件打开失败
+            throw NoPermissionsError(_path);
+        }
+
+        return content;
+    }
+#endif
+
+#ifdef _windows_
     /*
     覆盖式地写入
     @exception NoPermissionsError
@@ -293,6 +404,32 @@ public:
 
         WriteFile(fileh, value.data(), value.length() * sizeof(str::value_type), nullptr, NULL);
     }
+#else
+    /*
+    覆盖式地写入
+    @exception NoPermissionsError
+    */
+    void write(str value) ThrowPermiss
+    {
+        if (!has_writepers())
+        {
+            throw NoPermissionsError(_path);
+        }
+        std::ofstream file(_path, std::ios::out | std::ios::trunc);
+
+        if (file.is_open())
+        {
+            // 写入内容
+            file << value;
+            file.close();
+        }
+        else
+        {
+            // 文件打开失败
+            throw NoPermissionsError(_path);
+        }
+    }
+#endif
 
     inline str getpath() { return _path; }
 };
@@ -371,7 +508,7 @@ private:
     // 缓冲区的名称 一般与文件名相同
     str _name = "New Buffer";
     // 缓冲区所绑定的[FileIO]
-    FileIO _io = FileIO((str) ".\\a.txt");
+    FileIO _io = FileIO((str) "./a.txt");
 
     // 字符缓冲区
     std::vector<WCharList> text_buffer;
@@ -497,12 +634,44 @@ void parse_args(int argc, const char **argv, Configtion &config) noexcept
     }
 }
 
+const int CTRL_C = 3;
+const int CTRL_S = 19;
+const int TAB = 9;
+
+#ifdef _windows_
+
+const int ENTER = 13;
+const int BACKSPACE = 8;
+
+const int UP = -296;
+const int DOWN = -304;
+const int LEFT = -299;
+const int RIGHT = -301;
+
+const int DEL = -307;
+
+#else
+
+const int ENTER = 10;
+const int BACKSPACE = 127;
+
+const int UP = -65;
+const int DOWN = -66;
+const int LEFT = -68;
+const int RIGHT = -67;
+
+const int DEL = -51;
+
+#endif
+
 /*
 获取输入 不堵塞、回显
 参考：https://learn.microsoft.com/zh-cn/cpp/c-runtime-library/reference/getch-getwch
 */
 int input() noexcept
 {
+#ifdef _windows_
+
     if (!_kbhit())
     {
         return INT_NO_INPUT;
@@ -524,6 +693,32 @@ int input() noexcept
             return in;
         }
     }
+
+#else
+
+    int ch = getch();
+
+    if (ch == -1)
+    {
+        return INT_NO_INPUT;
+    }
+    else
+    {
+        if (ch == 126)
+            ch = getch();
+
+        if (ch == 27)
+        {
+            // 91
+            getch();
+
+            return -getch();
+        }
+
+        return ch;
+    }
+
+#endif
 }
 
 int last_page_x = 0;
@@ -539,6 +734,7 @@ inline std::size_t get_min_y(int page_y = last_page_y)
     return last_page_y * (config._width - 1 - max_line_size);
 }
 
+#ifdef _windows_
 /*
 移动光标
 */
@@ -550,6 +746,15 @@ void move_mouse_to(HANDLE handle, int x, int y)
 
     SetConsoleCursorPosition(handle, coord);
 }
+#else
+/*
+移动光标
+*/
+void move_mouse_to(std::wostream &stream, int x, int y)
+{
+    stream << "\033[" << y << ";" << x << "H"; // 使用 ANSI 转义序列移动光标
+}
+#endif
 
 /*
 移动到某个字符
@@ -571,11 +776,13 @@ void move_to_text(Buffer &buf, int x, int y)
         }
     }
 
+#ifdef _windows_
     move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), real_x, (real_y % (config._height - 2)) + 1);
+#else
+    move_mouse_to(std::wcout, real_x, (real_y % (config._height - 2)) + 1);
+#endif
 }
 
-// 判断一个值是否为特殊值
-#define is_curt(v) (v < 0)
 
 /*
 格式化输出数字，按照宽度
@@ -604,7 +811,11 @@ inline void wint_opt(int size, std::wint_t value)
 */
 inline void update_buttom(Buffer &buf)
 {
+#ifdef _windows_
     move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), 0, config._height - 1);
+#else
+    move_mouse_to(std::wcout, 0, config._height - 1);
+#endif
 
     std::wstring bustr = L"line[" + std::to_wstring(buf.getx() + 1) + L"] " + L" col[" + std::to_wstring(buf.gety() + 1) + L"] ";
 
@@ -612,7 +823,9 @@ inline void update_buttom(Buffer &buf)
         std::wcout << ' ';
     std::wcout << bustr;
 
+#ifdef _windows_
     std::wcout.flush();
+#endif
 }
 
 /*
@@ -635,7 +848,12 @@ void print(Buffer &buf)
      */
 
     cls();                                                // 清空屏幕
+
+#ifdef _windows_
     move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), 0, 0); // 设置输出光标
+#else
+    move_mouse_to(std::wcout, 0, 0); // 设置输出光标
+#endif  
 
     std::vector<WCharList> &vec = buf.getbuffer();
 
@@ -674,8 +892,10 @@ void print(Buffer &buf)
         std::wcout << ' ';
     std::wcout << bustr;
 
+#ifdef _windows_
     // 刷新输出缓冲区
     std::wcout.flush();
+#endif
 }
 
 // 程序是否应该退出 作为主循环的退出条件
@@ -703,7 +923,9 @@ inline void key_function add(Buffer &buf, int key)
 
     output(buf.getbuffer()[buf.getx()], get_min_y(cur_page_y), std::min(buf.getbuffer()[buf.getx()].size(), get_max_y(cur_page_y)));
 
+#ifdef _windows_
     std::wcout.flush();
+#endif
 
     update_buttom(buf);
 }
@@ -725,7 +947,7 @@ void exit_function tick_loop(Buffer &buf)
     }
 
     // 输入的是普通键
-    if (!is_curt(key))
+    if (key > 0)
     {
         // 如果是普通字符
         if (key >= 27)
@@ -739,14 +961,14 @@ void exit_function tick_loop(Buffer &buf)
         {
             switch (key)
             {
-            case 3: // CTRL + C
+            case CTRL_C: // CTRL + C
                 buf.save();
                 should_exit = true;
-                break;
-            case 19: // CTRL + S
+                return;
+            case CTRL_S: // CTRL + S
                 buf.save();
-                break;
-            case 13: // ENTER
+                return;
+            case ENTER: // ENTER
             {
                 buf.getbuffer().insert(buf.getbuffer().begin() + buf.getx() + 1, {0});
 
@@ -783,7 +1005,7 @@ void exit_function tick_loop(Buffer &buf)
 
                 break;
             }
-            case 8: // BACKSPACE
+            case BACKSPACE: // BACKSPACE
                 if (buf.gety() == 0 && buf.getx() > 0)
                 {
                     for (std::size_t i = 0; i < buf.getbuffer()[buf.getx()].size(); i++)
@@ -816,14 +1038,16 @@ void exit_function tick_loop(Buffer &buf)
                         std::wcout << ' ';
                     }
 
+#ifdef _windows_
                     std::wcout.flush();
+#endif
 
                     update_buttom(buf);
 
                     return;
                 }
                 break;
-            case 9: // TAB
+            case TAB: // TAB
                 add(buf, 32);
                 add(buf, 32);
                 add(buf, 32);
@@ -840,7 +1064,7 @@ void exit_function tick_loop(Buffer &buf)
     {
         switch (key)
         {
-        case -296: // UP
+        case UP: // UP
             if (buf.getx() > 0)
             {
                 buf.getx() -= 1;
@@ -856,7 +1080,7 @@ void exit_function tick_loop(Buffer &buf)
                 return;
             }
             break;
-        case -304: // DOWN
+        case DOWN: // DOWN
             if (buf.getx() < (buf.getbuffer().size() - 1))
             {
                 buf.getx() += 1;
@@ -872,7 +1096,7 @@ void exit_function tick_loop(Buffer &buf)
                 return;
             }
             break;
-        case -299: // LEFT
+        case LEFT: // LEFT
             if (buf.gety() > 0)
             {
                 buf.gety() -= 1;
@@ -884,19 +1108,19 @@ void exit_function tick_loop(Buffer &buf)
                 return;
             }
             break;
-        case -301: // RIGHT
+        case RIGHT: // RIGHT
             if (buf.gety() <= (buf.getbuffer()[buf.getx()].size() - 1) && buf.getbuffer()[buf.getx()].size() != 0)
             {
                 buf.gety() += 1;
             }
-            
+
             if (buf.gety() / (config._width - 1 - max_line_size) == last_page_y)
             {
                 update_buttom(buf);
                 return;
             }
             break;
-        case -307: // DEL
+        case DEL: // DEL
             if (buf.gety() < buf.getbuffer()[buf.getx()].size() - 1)
             {
                 remove(buf.getbuffer()[buf.getx()], buf.gety());
@@ -911,27 +1135,27 @@ void exit_function tick_loop(Buffer &buf)
     move_to_text(buf, buf.getx(), buf.gety());
 }
 
+/*
+重新设置配置内控制台大小
+*/
 void reset_console_size()
 {
+#if defined(_windows_)
+
     // 获取宽高
     CONSOLE_SCREEN_BUFFER_INFO csbi;
 
     GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
 
-    config._width = csbi.srWindow.Right - csbi.srWindow.Left + 1;
-    config._height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
-}
+    config._width = csbi.dwSize.X;
+    config._height = csbi.dwSize.Y;
 
-// 控制台窗口大小改变时的回调函数
-void __attribute__((__stdcall__)) ConsoleResizeCallback(HANDLE hConsoleOutput, DWORD dwEventType)
-{
-    if (dwEventType == WINDOW_BUFFER_SIZE_EVENT)
-    {
-        // 窗口大小改变
-        reset_console_size();
-    }
-}
+#else
 
+    getmaxyx(stdscr, config._height, config._width);
+
+#endif
+}
 /*
 程序的主入口
 */
@@ -939,20 +1163,34 @@ int exit_function main(int argc, const char **argv)
 {
     // Text editor
 
+#if !defined(_windows_)
+
+    initscr();             // 初始化 curses 库
+    raw();                 // 设置 cbreak 模式，禁用行缓冲
+    keypad(stdscr, TRUE);  // 允许处理特殊键，如方向键
+    noecho();              // 关闭字符回显
+    nodelay(stdscr, TRUE); // 关闭堵塞
+
+    flushinp();
+
+#endif
+
     // 关闭io同步减少渲染时间
     std::ios::sync_with_stdio(0);
     std::wios::sync_with_stdio(0);
-    std::wcin.tie(0);
-    std::wcout.tie(0);
+    std::cin.tie(nullptr);
+    std::cout.tie(nullptr);
+    std::wcin.tie(nullptr);
+    std::wcout.tie(nullptr);
     std::setlocale(LC_ALL, "chs");
 
     // 解析参数
     parse_args(argc, argv, config);
 
-    reset_console_size();
-
     // 初始清空屏幕
     cls();
+    // 获取屏幕宽高
+    reset_console_size();
 
     // 创建buffer
     Buffer buf("New Buffer");
@@ -961,15 +1199,20 @@ int exit_function main(int argc, const char **argv)
     Renderer::rend(buf.getbuffer());
     print(buf);
 
-    // 开始主循环 主循环每次调用tick函数 直到CTRL+C退出
+    // // 开始主循环 主循环每次调用tick函数 直到CTRL+C退出
     while (!should_exit)
     {
         // 调用tick函数
         tick_loop(buf);
     }
 
-    // 结束后清空屏幕
-    cls();
+    // 清空屏幕
+    // cls();
+
+#if !defined(_windows_)
+    flushinp();
+    endwin();
+#endif
 
     return 0;
 }

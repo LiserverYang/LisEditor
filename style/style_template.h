@@ -10,8 +10,6 @@
 #ifndef __STYLE_TEMPLATE_H__
 #define __STYLE_TEMPLATE_H__
 
-#include <windows.h>
-
 using cus = const unsigned short;
 
 static const cus S_COLOR_RED  = 31;
