@@ -526,6 +526,19 @@ int input() noexcept
     }
 }
 
+int last_page_x = 0;
+int last_page_y = 0;
+
+inline std::size_t get_max_y(int page_y = last_page_y)
+{
+    return (last_page_y + 1) * (config._width - 1 - max_line_size);
+}
+
+inline std::size_t get_min_y(int page_y = last_page_y)
+{
+    return last_page_y * (config._width - 1 - max_line_size);
+}
+
 /*
 移动光标
 */
@@ -546,7 +559,7 @@ void move_to_text(Buffer &buf, int x, int y)
     int real_x = 1 + max_line_size;
     int real_y = x;
 
-    for (int i = 0; i < y; i++)
+    for (int i = get_min_y(); i < y; i++)
     {
         if (IsChineseChar(buf.getbuffer()[x][i]))
         {
@@ -585,8 +598,6 @@ inline void wint_opt(int size, std::wint_t value)
         std::wcout << std::to_wstring(value);
     }
 }
-
-int last_page_x = 0;
 
 /*
 更新底部
@@ -636,17 +647,22 @@ void print(Buffer &buf)
 
     // MIDDLE
     int page_x = buf.getx() / (config._height - 2);
-    int page_y = buf.gety() / config._width;
+    int page_y = buf.gety() / (config._width - 1 - max_line_size);
 
     last_page_x = page_x;
+    last_page_y = page_y;
 
     for (int rx = 0; rx < config._height - 2; rx++)
     {
         if ((rx + page_x * (config._height - 2)) < vec.size())
         {
+            const std::size_t max_size = get_max_y();
+            const std::size_t min_size = (page_y) * (config._width - 1 - max_line_size);
+
             wint_opt(max_line_size, rx + page_x * (config._height - 2) + 1);
             std::wcout << ' ';
-            output(vec[rx + page_x * (config._height - 2)], 0, vec[rx + page_x * (config._height - 2)].size());
+
+            output(vec[rx + page_x * (config._height - 2)], min_size, std::min(vec[rx + page_x * (config._height - 2)].size(), max_size));
         }
         std::wcout << "\n";
     }
@@ -674,7 +690,18 @@ inline void key_function add(Buffer &buf, int key)
     buf.gety() += 1;
 
     move_to_text(buf, buf.getx(), 0);
-    output(buf.getbuffer()[buf.getx()], 0, buf.getbuffer()[buf.getx()].size());
+
+    int cur_page_y = buf.gety() / (config._width - 1 - max_line_size);
+
+    if (cur_page_y != last_page_y)
+    {
+        last_page_y = cur_page_y;
+
+        print(buf);
+        return;
+    }
+
+    output(buf.getbuffer()[buf.getx()], get_min_y(cur_page_y), std::min(buf.getbuffer()[buf.getx()].size(), get_max_y(cur_page_y)));
 
     std::wcout.flush();
 
@@ -774,9 +801,17 @@ void exit_function tick_loop(Buffer &buf)
 
                     move_to_text(buf, buf.getx(), 0);
 
-                    output(buf.getbuffer()[buf.getx()], 0, buf.getbuffer()[buf.getx()].size());
+                    int cur_page_y = buf.gety() / (config._width - 1 - max_line_size);
 
-                    for (int i = buf.getbuffer()[buf.getx()].size(); i < config._width - 1 - max_line_size; i++)
+                    if (cur_page_y != last_page_y)
+                    {
+                        last_page_y = cur_page_y;
+                        break;
+                    }
+
+                    output(buf.getbuffer()[buf.getx()], get_min_y(cur_page_y), std::min(buf.getbuffer()[buf.getx()].size(), get_max_y(cur_page_y)));
+
+                    for (int i = buf.getbuffer()[buf.getx()].size(); i < get_max_y(cur_page_y); i++)
                     {
                         std::wcout << ' ';
                     }
@@ -843,15 +878,24 @@ void exit_function tick_loop(Buffer &buf)
                 buf.gety() -= 1;
             }
 
-            update_buttom(buf);
-            return;
+            if (buf.gety() / (config._width - 1 - max_line_size) == last_page_y)
+            {
+                update_buttom(buf);
+                return;
+            }
+            break;
         case -301: // RIGHT
             if (buf.gety() <= (buf.getbuffer()[buf.getx()].size() - 1) && buf.getbuffer()[buf.getx()].size() != 0)
             {
                 buf.gety() += 1;
             }
-            update_buttom(buf);
-            return;
+            
+            if (buf.gety() / (config._width - 1 - max_line_size) == last_page_y)
+            {
+                update_buttom(buf);
+                return;
+            }
+            break;
         case -307: // DEL
             if (buf.gety() < buf.getbuffer()[buf.getx()].size() - 1)
             {
@@ -865,6 +909,27 @@ void exit_function tick_loop(Buffer &buf)
 
     print(buf);
     move_to_text(buf, buf.getx(), buf.gety());
+}
+
+void reset_console_size()
+{
+    // 获取宽高
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+
+    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+
+    config._width = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+    config._height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+}
+
+// 控制台窗口大小改变时的回调函数
+void __attribute__((__stdcall__)) ConsoleResizeCallback(HANDLE hConsoleOutput, DWORD dwEventType)
+{
+    if (dwEventType == WINDOW_BUFFER_SIZE_EVENT)
+    {
+        // 窗口大小改变
+        reset_console_size();
+    }
 }
 
 /*
@@ -884,13 +949,7 @@ int exit_function main(int argc, const char **argv)
     // 解析参数
     parse_args(argc, argv, config);
 
-    // 获取宽高
-    CONSOLE_SCREEN_BUFFER_INFO csbi;
-
-    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-
-    config._width = csbi.srWindow.Right - csbi.srWindow.Left + 1;
-    config._height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+    reset_console_size();
 
     // 初始清空屏幕
     cls();
