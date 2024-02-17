@@ -43,6 +43,7 @@
         "typeinfo": "cpp",
         "codecvt": "cpp",
         "locale": "cpp",
-        "ctime": "cpp"
+        "ctime": "cpp",
+        "cstring": "cpp"
     }
 }

@@ -260,7 +260,7 @@ public:
     ~FileIO()
     {
 #ifdef _windows_
-       CloseHandle(fileh);
+        CloseHandle(fileh);
 #endif
     }
 
@@ -314,7 +314,6 @@ public:
     {
         return true;
     }
-
 
 #endif
 
@@ -655,12 +654,12 @@ const int DEL = -307;
 const int ENTER = 10;
 const int BACKSPACE = 127;
 
-const int UP = -65;
-const int DOWN = -66;
-const int LEFT = -68;
-const int RIGHT = -67;
+const int UP = 259;
+const int DOWN = 258;
+const int LEFT = 260;
+const int RIGHT = 261;
 
-const int DEL = -51;
+const int DEL = 330;
 
 #endif
 
@@ -704,17 +703,6 @@ int input() noexcept
     }
     else
     {
-        if (ch == 126)
-            ch = getch();
-
-        if (ch == 27)
-        {
-            // 91
-            getch();
-
-            return -getch();
-        }
-
         return ch;
     }
 
@@ -750,9 +738,9 @@ void move_mouse_to(HANDLE handle, int x, int y)
 /*
 移动光标
 */
-void move_mouse_to(std::wostream &stream, int x, int y)
+void move_mouse_to(int x, int y)
 {
-    stream << "\033[" << y << ";" << x << "H"; // 使用 ANSI 转义序列移动光标
+    move(y, x);
 }
 #endif
 
@@ -779,10 +767,9 @@ void move_to_text(Buffer &buf, int x, int y)
 #ifdef _windows_
     move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), real_x, (real_y % (config._height - 2)) + 1);
 #else
-    move_mouse_to(std::wcout, real_x, (real_y % (config._height - 2)) + 1);
+    move_mouse_to(real_x, (real_y % (config._height - 2)) + 1);
 #endif
 }
-
 
 /*
 格式化输出数字，按照宽度
@@ -814,7 +801,7 @@ inline void update_buttom(Buffer &buf)
 #ifdef _windows_
     move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), 0, config._height - 1);
 #else
-    move_mouse_to(std::wcout, 0, config._height - 1);
+    move_mouse_to(0, config._height);
 #endif
 
     std::wstring bustr = L"line[" + std::to_wstring(buf.getx() + 1) + L"] " + L" col[" + std::to_wstring(buf.gety() + 1) + L"] ";
@@ -823,9 +810,8 @@ inline void update_buttom(Buffer &buf)
         std::wcout << ' ';
     std::wcout << bustr;
 
-#ifdef _windows_
+
     std::wcout.flush();
-#endif
 }
 
 /*
@@ -847,13 +833,13 @@ void print(Buffer &buf)
      [Middle]line[0/0]  col[0/0][/Middle] <- Buttom
      */
 
-    cls();                                                // 清空屏幕
+    cls(); // 清空屏幕
 
 #ifdef _windows_
     move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), 0, 0); // 设置输出光标
 #else
-    move_mouse_to(std::wcout, 0, 0); // 设置输出光标
-#endif  
+    move_mouse_to(0, 0); // 设置输出光标
+#endif
 
     std::vector<WCharList> &vec = buf.getbuffer();
 
@@ -892,10 +878,7 @@ void print(Buffer &buf)
         std::wcout << ' ';
     std::wcout << bustr;
 
-#ifdef _windows_
-    // 刷新输出缓冲区
     std::wcout.flush();
-#endif
 }
 
 // 程序是否应该退出 作为主循环的退出条件
@@ -923,9 +906,7 @@ inline void key_function add(Buffer &buf, int key)
 
     output(buf.getbuffer()[buf.getx()], get_min_y(cur_page_y), std::min(buf.getbuffer()[buf.getx()].size(), get_max_y(cur_page_y)));
 
-#ifdef _windows_
     std::wcout.flush();
-#endif
 
     update_buttom(buf);
 }
@@ -946,8 +927,10 @@ void exit_function tick_loop(Buffer &buf)
         return;
     }
 
+#ifdef _windows_
     // 输入的是普通键
     if (key > 0)
+#endif
     {
         // 如果是普通字符
         if (key >= 27)
@@ -1038,9 +1021,7 @@ void exit_function tick_loop(Buffer &buf)
                         std::wcout << ' ';
                     }
 
-#ifdef _windows_
                     std::wcout.flush();
-#endif
 
                     update_buttom(buf);
 
@@ -1059,8 +1040,10 @@ void exit_function tick_loop(Buffer &buf)
             }
         }
     }
+#ifdef _windows_
     // 输入的是特殊键
     else
+#endif
     {
         switch (key)
         {
@@ -1072,7 +1055,7 @@ void exit_function tick_loop(Buffer &buf)
                 if (buf.getbuffer()[buf.getx()].size() == 0)
                     buf.gety() = 0;
                 else
-                    buf.gety() = min(buf.gety(), buf.getbuffer()[buf.getx()].size() - 1);
+                    buf.gety() = min(buf.gety(), buf.getbuffer()[buf.getx()].size());
             }
             if (buf.getx() / (config._height - 2) == last_page_x)
             {
@@ -1088,7 +1071,7 @@ void exit_function tick_loop(Buffer &buf)
                 if (buf.getbuffer()[buf.getx()].size() == 0)
                     buf.gety() = 0;
                 else
-                    buf.gety() = min(buf.gety(), buf.getbuffer()[buf.getx()].size() - 1);
+                    buf.gety() = min(buf.gety(), buf.getbuffer()[buf.getx()].size());
             }
             if (buf.getx() / (config._height - 2) == last_page_x)
             {
@@ -1199,7 +1182,7 @@ int exit_function main(int argc, const char **argv)
     Renderer::rend(buf.getbuffer());
     print(buf);
 
-    // // 开始主循环 主循环每次调用tick函数 直到CTRL+C退出
+    // 开始主循环 主循环每次调用tick函数 直到CTRL+C退出
     while (!should_exit)
     {
         // 调用tick函数
@@ -1207,7 +1190,7 @@ int exit_function main(int argc, const char **argv)
     }
 
     // 清空屏幕
-    // cls();
+    cls();
 
 #if !defined(_windows_)
     flushinp();
