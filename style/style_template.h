@@ -12,8 +12,8 @@
 
 using cus = const unsigned short;
 
-static const cus S_COLOR_RED  = 31;
-static const cus S_COLOR_BLUE = 36;
+static cus S_COLOR_RED  = 31;
+static cus S_COLOR_BLUE = 36;
 
 namespace style
 {

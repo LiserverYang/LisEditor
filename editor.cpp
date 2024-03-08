@@ -57,23 +57,17 @@ using str = std::string;
 // 未输入
 #define INT_NO_INPUT 0x00
 
-// 该函数/函数引用的变量可能会退出程序
+// 该函数/函数引用的变量可能会导致程序退出
 #define exit_function
 
-// 按键输入后处理文字的函数
+// 按键输入后处理缓冲区的函数
 #define key_function
 
-// 行号的最大值
+// 行号所站的最大宽度
 int max_line_size = 1;
 
 // 程序是否应该退出 作为主循环的退出条件
 bool exit_function should_exit = false;
-
-// 防止冲突
-#undef max
-#undef min
-#undef for_each
-#undef cls
 
 /*
 获取两个对象之中最大值
@@ -131,6 +125,7 @@ void cls(HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE))
 
     return;
 }
+
 /*
 程序的所有全局配置
 _path     : 编辑的文件路径
@@ -151,8 +146,30 @@ public:
     Configtion(str path = "./a.txt", bool readonly = false) : _path(path), _readonly(readonly) {}
 };
 
-// 全局地配置对象
+// 全局的配置对象
 Configtion config;
+
+/*
+解析程序的所有参数
+*/
+void parse_args(int argc, const char **argv, Configtion &config) noexcept
+{
+    for (int i = 1; i < argc; i++)
+    {
+        // arg
+        if (argv[i][0] == '-')
+        {
+            if (0 == strcmp(argv[i], "-ro"))
+            {
+                config._readonly = true;
+            }
+        }
+        else // file
+        {
+            config._path = argv[i];
+        }
+    }
+}
 
 /*
 当[FileIO]的read/write函数尝试读取/写入，但是没有权限时抛出的错误
@@ -282,8 +299,14 @@ public:
         WriteFile(fileh, value.data(), value.length() * sizeof(str::value_type), nullptr, NULL);
     }
 
+    /*
+    获取文件路径
+    */
     inline str getpath() { return _path; }
 };
+
+// 定义待输出行/缓冲行
+using WCharList = std::vector<PairWChar>;
 
 /*
 比较两个待输出字符是否相等
@@ -298,7 +321,23 @@ bool operator==(PairWChar a, PairWChar b)
 */
 bool operator!=(PairWChar a, PairWChar b)
 {
-    return a.ch != b.ch;
+    return (a.ch != b.ch);
+}
+
+/*
+比较两个待输出行是否相等
+*/
+inline bool operator==(WCharList &lef, WCharList &rit)
+{
+    return lef.begin() == rit.begin();
+}
+
+/*
+比较两个待输出行是否不等
+*/
+inline bool operator!=(WCharList &lef, WCharList &rit)
+{
+    return lef.begin() != rit.begin();
 }
 
 /*
@@ -306,12 +345,8 @@ bool operator!=(PairWChar a, PairWChar b)
 */
 inline bool IsChineseChar(PairWChar ch)
 {
-    return ch.ch >= 0x4E00 && ch.ch <= 0x9FA5;
+    return (ch.ch >= 0x4E00) && (ch.ch <= 0x9FA5);
 }
-
-// 定义待输出行/缓冲行
-using WCharList = std::vector<PairWChar>;
-
 /*
 输出一行
 */
@@ -329,22 +364,6 @@ void output(WCharList list, WCharList::size_type begin, WCharList::size_type end
 void remove(WCharList &list, WCharList::size_type pos)
 {
     list.erase(list.begin() + pos);
-}
-
-/*
-比较是否不等
-*/
-inline bool operator!=(WCharList &lef, WCharList &rit)
-{
-    return lef.begin() != rit.begin();
-}
-
-/*
-比较是否相等
-*/
-inline bool operator==(WCharList &lef, WCharList &rit)
-{
-    return lef.begin() == rit.begin();
 }
 
 /*
@@ -463,38 +482,17 @@ public:
     inline int &gety() { return cur_y; }
 };
 
-/*
-解析程序的所有参数
-*/
-void parse_args(int argc, const char **argv, Configtion &config) noexcept
-{
-    for (int i = 1; i < argc; i++)
-    {
-        // arg
-        if (argv[i][0] == '-')
-        {
-            if (0 == strcmp(argv[i], "-ro"))
-            {
-                config._readonly = true;
-            }
-        }
-        else // file
-        {
-            config._path = argv[i];
-        }
-    }
-}
-
-// 命令是否在输入
+// 是否处于命令模式
 bool input_command = false;
+// 输入的命令
 std::wstring command = L"";
-
+// 当前指向的y
 int command_cur_y = 0;
 
 /*
 解析命令
 */
-void exit_function key_function command_parser(Buffer& buf, std::wstring& command)
+void exit_function key_function command_parser(Buffer &buf, std::wstring &command)
 {
     if (command == L"quit")
     {
@@ -506,7 +504,7 @@ void exit_function key_function command_parser(Buffer& buf, std::wstring& comman
         should_exit = true;
     }
 
-    else if(command == L"save")
+    else if (command == L"save")
     {
         if (!config._readonly)
         {
@@ -520,7 +518,6 @@ void exit_function key_function command_parser(Buffer& buf, std::wstring& comman
     input_command = false;
 }
 
-const int CTRL_C = 3;
 const int CTRL_S = 19;
 const int TAB = 9;
 
@@ -533,7 +530,6 @@ const int LEFT = -299;
 const int RIGHT = -301;
 
 const int DEL = -307;
-
 
 inline bool is_letter(int key)
 {
@@ -649,7 +645,8 @@ inline void wint_opt(int size, std::wint_t value)
 */
 inline void update_buttom(Buffer &buf, bool move_mouse = true)
 {
-    if (move_mouse) move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), 0, config._height - 1);
+    if (move_mouse)
+        move_mouse_to(GetStdHandle(STD_OUTPUT_HANDLE), 0, config._height - 1);
 
     std::wstring bustr = L"line[" + std::to_wstring(buf.getx() + 1) + L"] " + L" col[" + std::to_wstring(buf.gety() + 1) + L"] ";
 
@@ -667,7 +664,7 @@ inline void update_buttom(Buffer &buf, bool move_mouse = true)
 
     for (; i < (config._width - bustr.size()) / 2; i++)
         std::wcout << ' ';
-    
+
     std::wcout << bustr;
 
     std::wcout.flush();
@@ -778,6 +775,11 @@ void exit_function tick_loop(Buffer &buf)
         return;
     }
 
+    int& x = buf.getx();
+    int& y = buf.gety();
+
+    std::vector<WCharList>& tbuf = buf.getbuffer();
+
     // 输入的是普通键
     if (key > 0)
     {
@@ -787,13 +789,13 @@ void exit_function tick_loop(Buffer &buf)
             if (input_command)
             {
                 command += (char)key;
-                command_cur_y ++;
+                command_cur_y++;
                 update_buttom(buf);
             }
             else
             {
                 add(buf, key);
-                Renderer::rend(buf.getbuffer());
+                Renderer::rend(tbuf);
             }
             return;
         }
@@ -812,10 +814,6 @@ void exit_function tick_loop(Buffer &buf)
         {
             switch (key)
             {
-            case CTRL_C: // CTRL + C
-                buf.save();
-                should_exit = true;
-                return;
             case CTRL_S: // CTRL + S
                 buf.save();
                 return;
@@ -830,48 +828,48 @@ void exit_function tick_loop(Buffer &buf)
                     return;
                 }
 
-                buf.getbuffer().emplace(buf.getbuffer().begin() + buf.getx() + 1);
+                tbuf.emplace(tbuf.begin() + x + 1);
 
                 std::size_t tmpv = 0;
 
-                if (!buf.getbuffer()[buf.getx()].empty())
-                    for (std::size_t i = 0; i <= buf.gety(); i++, tmpv++)
+                if (!tbuf[x].empty())
+                    for (std::size_t i = 0; i <= y; i++, tmpv++)
                     {
-                        if (buf.getbuffer()[buf.getx()][i] != 32)
+                        if (tbuf[x][i] != 32)
                             break;
 
-                        buf.getbuffer()[buf.getx() + 1].insert(buf.getbuffer()[buf.getx() + 1].begin() + i, PairWChar(' '));
+                        tbuf[x + 1].insert(tbuf[x + 1].begin() + i, PairWChar(' '));
                     }
 
-                if (buf.getbuffer()[buf.getx()].size() != 0)
+                if (tbuf[x].size() != 0)
                 {
                     std::size_t count = 0;
 
-                    for (std::size_t i = buf.gety(); i < buf.getbuffer()[buf.getx()].size(); i++, count++)
+                    for (std::size_t i = y; i < tbuf[x].size(); i++, count++)
                     {
-                        buf.getbuffer()[buf.getx() + 1].push_back(buf.getbuffer()[buf.getx()][i]);
+                        tbuf[x + 1].push_back(tbuf[x][i]);
                     }
 
                     for (std::size_t i = 0; i < count; i++)
                     {
-                        buf.getbuffer()[buf.getx()].pop_back();
+                        tbuf[x].pop_back();
                     }
                 }
 
-                buf.getx() += 1;
-                buf.gety() = tmpv;
+                x += 1;
+                y = tmpv;
 
-                max_line_size = std::to_string(buf.getbuffer().size()).size();
+                max_line_size = std::to_string(tbuf.size()).size();
 
                 break;
             }
-            case BACKSPACE: // BACKSPACE                
+            case BACKSPACE: // BACKSPACE
                 if (input_command)
                 {
                     if (command.size() > 0 && command_cur_y > 0)
                     {
                         command.erase(command.begin() + command_cur_y - 1);
-                        command_cur_y --;
+                        command_cur_y--;
                     }
 
                     update_buttom(buf);
@@ -879,27 +877,27 @@ void exit_function tick_loop(Buffer &buf)
                     return;
                 }
 
-                if (buf.gety() == 0 && buf.getx() > 0)
+                if (y == 0 && x > 0)
                 {
-                    for (std::size_t i = 0; i < buf.getbuffer()[buf.getx()].size(); i++)
+                    for (std::size_t i = 0; i < tbuf[x].size(); i++)
                     {
-                        buf.getbuffer()[buf.getx() - 1].push_back(buf.getbuffer()[buf.getx()][i]);
+                        tbuf[x - 1].push_back(tbuf[x][i]);
                     }
-                    buf.getbuffer().erase(buf.getbuffer().begin() + buf.getx());
-                    buf.getx() -= 1;
-                    if (buf.getbuffer()[buf.getx()].empty())
-                        buf.gety() = 0;
+                    tbuf.erase(tbuf.begin() + x);
+                    x -= 1;
+                    if (tbuf[x].empty())
+                        y = 0;
                     else
-                        buf.gety() = buf.getbuffer()[buf.getx()].size() - 1;
+                        y = tbuf[x].size() - 1;
                 }
-                else if (buf.gety() > 0)
+                else if (y > 0)
                 {
-                    remove(buf.getbuffer()[buf.getx()], buf.gety() - 1);
-                    buf.gety() -= 1;
+                    remove(tbuf[x], y - 1);
+                    y -= 1;
 
-                    move_to_text(buf, buf.getx(), 0);
+                    move_to_text(buf, x, 0);
 
-                    int cur_page_y = buf.gety() / (config._width - 1 - max_line_size);
+                    int cur_page_y = y / (config._width - 1 - max_line_size);
 
                     if (cur_page_y != last_page_y)
                     {
@@ -907,9 +905,9 @@ void exit_function tick_loop(Buffer &buf)
                         break;
                     }
 
-                    output(buf.getbuffer()[buf.getx()], get_min_y(cur_page_y), std::min(buf.getbuffer()[buf.getx()].size(), get_max_y(cur_page_y)));
+                    output(tbuf[x], get_min_y(cur_page_y), std::min(tbuf[x].size(), get_max_y(cur_page_y)));
 
-                    for (int i = buf.getbuffer()[buf.getx()].size(); i < get_max_y(cur_page_y); i++)
+                    for (int i = tbuf[x].size(); i < get_max_y(cur_page_y); i++)
                     {
                         std::wcout << ' ';
                     }
@@ -939,73 +937,75 @@ void exit_function tick_loop(Buffer &buf)
         switch (key)
         {
         case UP: // UP
-            if (input_command) return;
+            if (input_command)
+                return;
 
-            if (buf.getx() > 0)
+            if (x > 0)
             {
-                buf.getx() -= 1;
+                x -= 1;
 
-                if (buf.getbuffer()[buf.getx()].size() == 0)
-                    buf.gety() = 0;
+                if (tbuf[x].size() == 0)
+                    y = 0;
                 else
-                    buf.gety() = min(buf.gety(), buf.getbuffer()[buf.getx()].size());
+                    y = min(y, tbuf[x].size());
             }
-            if (buf.getx() / (config._height - 2) == last_page_x)
+            if (x / (config._height - 2) == last_page_x)
             {
                 update_buttom(buf);
                 return;
             }
             break;
         case DOWN: // DOWN
-            if (input_command) return;
+            if (input_command)
+                return;
 
-            if (buf.getx() < (buf.getbuffer().size() - 1))
+            if (x < (tbuf.size() - 1))
             {
-                buf.getx() += 1;
+                x += 1;
 
-                if (buf.getbuffer()[buf.getx()].size() == 0)
-                    buf.gety() = 0;
+                if (tbuf[x].size() == 0)
+                    y = 0;
                 else
-                    buf.gety() = min(buf.gety(), buf.getbuffer()[buf.getx()].size());
+                    y = min(y, tbuf[x].size());
             }
-            if (buf.getx() / (config._height - 2) == last_page_x)
+            if (x / (config._height - 2) == last_page_x)
             {
                 update_buttom(buf);
                 return;
             }
             break;
         case LEFT: // LEFT
-            if (input_command && command_cur_y != 0) command_cur_y --;
+            if (input_command && command_cur_y != 0)
+                command_cur_y--;
 
-            if (buf.gety() > 0)
-            {
-                buf.gety() -= 1;
-            }
+            if (y > 0)
+                y -= 1;
 
-            if (buf.gety() / (config._width - 1 - max_line_size) == last_page_y)
+            if (y / (config._width - 1 - max_line_size) == last_page_y)
             {
                 update_buttom(buf);
                 return;
             }
             break;
         case RIGHT: // RIGHT
-            if (input_command && command_cur_y < command.size()) command_cur_y ++;
+            if (input_command && command_cur_y < command.size())
+                command_cur_y++;
 
-            if (buf.gety() <= (buf.getbuffer()[buf.getx()].size() - 1) && buf.getbuffer()[buf.getx()].size() != 0)
+            if (y <= (tbuf[x].size() - 1) && tbuf[x].size() != 0)
             {
-                buf.gety() += 1;
+                y += 1;
             }
 
-            if (buf.gety() / (config._width - 1 - max_line_size) == last_page_y)
+            if (y / (config._width - 1 - max_line_size) == last_page_y)
             {
                 update_buttom(buf);
                 return;
             }
             break;
         case DEL: // DEL
-            if (buf.gety() < buf.getbuffer()[buf.getx()].size() - 1)
+            if (y < tbuf[x].size() - 1)
             {
-                remove(buf.getbuffer()[buf.getx()], buf.gety());
+                remove(tbuf[x], y);
             }
             break;
         default: // 不关注的特殊键 无需处理
@@ -1014,7 +1014,7 @@ void exit_function tick_loop(Buffer &buf)
     }
 
     print(buf);
-    move_to_text(buf, buf.getx(), buf.gety());
+    move_to_text(buf, x, y);
 }
 
 /*
@@ -1057,11 +1057,11 @@ int exit_function main(int argc, const char **argv)
     // 创建buffer
     Buffer buf("New Buffer");
 
-    // 第一次渲染输出。循环内渲染是惰性的。第一次不输出可能会导致一段时间内没有文字
+    // 第一次渲染输出。循环内渲染和输出是惰性的。第一次不输出可能会导致一段时间内没有文字
     Renderer::rend(buf.getbuffer());
     print(buf);
 
-    // 开始主循环 主循环每次调用tick函数 直到CTRL+C退出
+    // 开始主循环 主循环每次调用tick函数 直到通过命令退出
     while (!should_exit)
     {
         // 调用tick函数

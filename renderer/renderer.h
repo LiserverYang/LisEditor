@@ -13,6 +13,10 @@
 #include <vector>
 #include <string>
 
+/*
+ * If you want to change the style, do here.
+ * 如果你想要修改样式，在这里
+ */
 #include "../style/style_template.h"
 
 const wchar_t Keyword[][69] = {
@@ -84,8 +88,7 @@ const wchar_t Keyword[][69] = {
     L"size_t",
     L"final",
     L"requires",
-    L"concept"
-};
+    L"concept"};
 
 const wchar_t Operator[] = {
     L'+',
@@ -115,8 +118,7 @@ const wchar_t Operator[] = {
     L'}',
     L'.',
     L'$',
-    L'#'
-};
+    L'#'};
 
 /*
 对于每个字符的值、颜色
@@ -127,18 +129,18 @@ public:
     wint_t ch;
     unsigned short cl;
 
-    PairWChar() { ch = 32; cl = 0; }
+    PairWChar()
+    {
+        ch = 32;
+        cl = 0;
+    }
+
     PairWChar(wint_t letter, unsigned short at = 0)
     {
         ch = letter;
         cl = at;
     }
 };
-
-bool is_keyword (std::wstring str);
-bool is_operaotr(wchar_t str);
-bool is_char(wchar_t c);
-bool is_number(wchar_t c);
 
 #define DELAY_TIME 1000
 
@@ -147,7 +149,7 @@ namespace Renderer
     /*
     C++ renderer
     */
-    void rend(std::vector<std::vector<PairWChar>>& buffer);
+    void rend(std::vector<std::vector<PairWChar>> &buffer);
 }
 
 #endif
