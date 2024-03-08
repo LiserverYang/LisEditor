@@ -12,13 +12,9 @@ This is a easy open-source text editor repository.
     ```shell
     .\\build.cmd
     ```
-    or
-    ```shell
-    g++ .\\editor.cpp -std=c++11 -Werror -o liseditor
-    ```
 
 - MacOS or Linux:
-    It can't build on MacOS or Linux. But you also can use wine.
+    It can't build on MacOS or Linux. But you can also use wine.
 
 <br>
 
