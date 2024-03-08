@@ -163,6 +163,10 @@ void parse_args(int argc, const char **argv, Configtion &config) noexcept
             {
                 config._readonly = true;
             }
+            else if (0 == strcmp(argv[i], "-readonly"))
+            {
+                config._readonly = true;
+            }
         }
         else // file
         {
@@ -207,14 +211,17 @@ public:
     FileIO() = delete;
     FileIO(str path) : _path(path)
     {
+        if (!config._readonly)
+        {
         // 不检查文件是否存在 但是不存在创建文件
 #ifdef _enabled_cvt_
-        fileh = CreateFileW(std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().from_bytes(_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_DELETE | FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+            fileh = CreateFileW(std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().from_bytes(_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_DELETE | FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 #else
-        fileh = CreateFileW(to_wstr(_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_DELETE | FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+            fileh = CreateFileW(to_wstr(_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_DELETE | FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 #endif
         // 获取文件大小
-        read_size();
+            read_size();
+        }
     }
 
     ~FileIO()
@@ -260,6 +267,8 @@ public:
     */
     str read() ThrowPermiss
     {
+        if (config._readonly) return "";
+
         if (!has_readpers())
         {
             throw NoPermissionsError(_path);
@@ -290,6 +299,8 @@ public:
     */
     void write(str value) ThrowPermiss
     {
+        if (config._readonly) return;
+
         if (!has_writepers())
         {
             throw NoPermissionsError(_path);
@@ -652,17 +663,19 @@ inline void update_buttom(Buffer &buf, bool move_mouse = true)
 
     int i = 0;
 
+    const int space_size = (input_command) ? ((config._width - bustr.size()) - 1) : ((config._width - bustr.size()) / 2);
+
     if (command.size() != 0)
     {
-        if (command.size() - 1 < i < (config._width - bustr.size()) / 2)
+        if (command.size() - 1 < space_size)
         {
             std::wcout << command;
         }
 
-        i = command.size() - 1;
+        i = command.size();
     }
 
-    for (; i < (config._width - bustr.size()) / 2; i++)
+    for (; i < space_size; i++)
         std::wcout << ' ';
 
     std::wcout << bustr;
@@ -695,11 +708,13 @@ void print(Buffer &buf)
 
     std::vector<WCharList> &vec = buf.getbuffer();
 
+    const str name = (config._readonly) ? ("New Buffer") : buf.getname();
+
     // TOP
-    for (int i = 0; i < (config._width - buf.getname().size()) / 2; i++)
+    for (int i = 0; i < (config._width - name.size()) / 2; i++)
         std::wcout << ' ';
 
-    std::wcout << buf.getname().c_str() << '\n';
+    std::wcout << name.c_str() << '\n';
 
     // MIDDLE
     int page_x = buf.getx() / (config._height - 2);
@@ -775,10 +790,10 @@ void exit_function tick_loop(Buffer &buf)
         return;
     }
 
-    int& x = buf.getx();
-    int& y = buf.gety();
+    int &x = buf.getx();
+    int &y = buf.gety();
 
-    std::vector<WCharList>& tbuf = buf.getbuffer();
+    std::vector<WCharList> &tbuf = buf.getbuffer();
 
     // 输入的是普通键
     if (key > 0)

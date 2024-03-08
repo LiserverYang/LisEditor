@@ -63,8 +63,7 @@ void Renderer::rend(std::vector<std::vector<PairWChar>> &buffer)
 
     last_called_time = now_called_time;
 
-    if (buffer.empty())
-        return;
+    if (buffer.empty()) return;
 
     for (int i = 0; i < buffer.size(); i++)
     {

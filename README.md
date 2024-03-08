@@ -25,7 +25,6 @@ This is a easy open-source text editor repository.
 **./liseditor** **./a.cpp[FileName]** **-ro[readonly]**
 
 - Press key **CTRL + S** to save change.
-- Press key **CTRL + C** to exit this application.
 
 ## How do you do something for this project?
 

@@ -10,10 +10,6 @@
     ```shell
     .\\build.cmd
     ```
-    或
-    ```shell
-    g++ .\\editor.cpp -std=c++11 -Werror -o liseditor
-    ```
 
 - MacOS or Linux:
     它目前无法在MacOS或Linux上使用。但是你仍然可以通过wine来间接地使用它。
@@ -23,7 +19,6 @@
 **./liseditor** **[文件名]** **-ro[只读]**
 
 - 按下快捷键 **CTRL + S** 来保存更改
-- 按下快捷键 **CTRL + C** 来退出程序。
 
 ## 如何为这个项目做出一些贡献？
 
