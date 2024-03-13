@@ -140,6 +140,8 @@ public:
     str _path = "./a.txt";
     // 是否只读
     bool _readonly = false;
+    // 是否创建文件
+    bool _create = false;
     // 控制台的宽高
     int _width = 0, _height = 0;
 
@@ -166,6 +168,10 @@ void parse_args(int argc, const char **argv, Configtion &config) noexcept
             else if (0 == strcmp(argv[i], "-readonly"))
             {
                 config._readonly = true;
+            }
+            else if (0 == strcmp(argv[i], "-create"))
+            {
+                config._create = true;
             }
         }
         else // file
@@ -211,6 +217,11 @@ public:
     FileIO() = delete;
     FileIO(str path) : _path(path)
     {
+        if (-1 == access(_path.c_str(), 0) && !config._create)
+        {
+            config._readonly = true;
+        }
+
         if (!config._readonly)
         {
         // 不检查文件是否存在 但是不存在创建文件
@@ -297,7 +308,7 @@ public:
     覆盖式地写入
     @exception NoPermissionsError
     */
-    void write(str value) ThrowPermiss
+    void write(str& value) ThrowPermiss
     {
         if (config._readonly) return;
 
@@ -307,7 +318,13 @@ public:
         }
         SetFilePointer(fileh, 0, NULL, FILE_BEGIN);
 
-        WriteFile(fileh, value.data(), value.length() * sizeof(str::value_type), nullptr, NULL);
+        WriteFile(fileh, value.data(), value.length(), nullptr, NULL);
+
+        LARGE_INTEGER moveSize;
+        moveSize.QuadPart = value.size();
+
+        SetFilePointerEx(fileh, moveSize, NULL, FILE_BEGIN);
+        SetEndOfFile(fileh);
     }
 
     /*
@@ -389,7 +406,7 @@ private:
     // 缓冲区的名称 一般与文件名相同
     str _name = "New Buffer";
     // 缓冲区所绑定的[FileIO]
-    FileIO _io = FileIO((str) "./a.txt");
+    FileIO _io = FileIO((str) _name);
 
     // 字符缓冲区
     std::vector<WCharList> text_buffer;
@@ -1063,6 +1080,9 @@ int exit_function main(int argc, const char **argv)
 
     // 解析参数
     parse_args(argc, argv, config);
+
+    config._path = "./test.cpp";
+    config._create = true;
 
     // 初始清空屏幕
     cls();
