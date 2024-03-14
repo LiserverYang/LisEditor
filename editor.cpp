@@ -1081,9 +1081,6 @@ int exit_function main(int argc, const char **argv)
     // 解析参数
     parse_args(argc, argv, config);
 
-    config._path = "./test.cpp";
-    config._create = true;
-
     // 初始清空屏幕
     cls();
     // 获取屏幕宽高
