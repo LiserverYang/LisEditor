@@ -93,7 +93,7 @@ _Ty min(_Ty a, _Tz b)
 template <class A, class B>
 void for_each(A begin, A end, B func)
 {
-    for (auto it = begin; it != end; it++)
+    for (A it = begin; it != end; it++)
     {
         func(*it);
     }
@@ -137,7 +137,7 @@ class Configtion
 {
 public:
     // 获取到的文件路径
-    str _path = "./a.txt";
+    str _path = "";
     // 是否只读
     bool _readonly = false;
     // 是否创建文件
@@ -145,7 +145,7 @@ public:
     // 控制台的宽高
     int _width = 0, _height = 0;
 
-    Configtion(str path = "./a.txt", bool readonly = false) : _path(path), _readonly(readonly) {}
+    Configtion(str path = "", bool readonly = false) : _path(path), _readonly(readonly) {}
 };
 
 // 全局的配置对象
@@ -213,26 +213,38 @@ private:
     // 通过read_size函数获取的文件大小
     LARGE_INTEGER size;
 
+    // 无效IO
+    bool error_io = false;
+
 public:
     FileIO() = delete;
     FileIO(str path) : _path(path)
     {
-        if (-1 == access(_path.c_str(), 0) && !config._create)
+        if (path == "")
         {
-            config._readonly = true;
+            error_io = true;
+            return;
         }
 
-        if (!config._readonly)
+        if (check() || !check() && config._create)
         {
-        // 不检查文件是否存在 但是不存在创建文件
 #ifdef _enabled_cvt_
             fileh = CreateFileW(std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().from_bytes(_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_DELETE | FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 #else
             fileh = CreateFileW(to_wstr(_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_DELETE | FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 #endif
-        // 获取文件大小
+            // 获取文件大小
             read_size();
         }
+        else if(!check())
+        {
+            config._readonly = true;
+        }
+    }
+
+    FileIO(int v)
+    {
+        error_io = true;
     }
 
     ~FileIO()
@@ -245,7 +257,7 @@ public:
     */
     bool check() noexcept
     {
-        return access(_path.c_str(), 0x00) == 0;
+        return access(_path.c_str(), F_OK) != -1;
     }
 
     /*
@@ -278,7 +290,10 @@ public:
     */
     str read() ThrowPermiss
     {
-        if (config._readonly) return "";
+        if (-1 == access(_path.c_str(), 0) || error_io)
+        {
+            return "";
+        }
 
         if (!has_readpers())
         {
@@ -307,18 +322,23 @@ public:
     /*
     覆盖式地写入
     @exception NoPermissionsError
+
+    TODO Bugs waiting for fix!
+    - Can not save the texts
     */
-    void write(str& value) ThrowPermiss
+    void write(str value) ThrowPermiss
     {
-        if (config._readonly) return;
+        if (config._readonly || error_io)
+            return;
 
         if (!has_writepers())
         {
             throw NoPermissionsError(_path);
         }
+
         SetFilePointer(fileh, 0, NULL, FILE_BEGIN);
 
-        WriteFile(fileh, value.data(), value.length(), nullptr, NULL);
+        WriteFile(fileh, value.data(), value.length() * sizeof(str::value_type), nullptr, NULL);
 
         LARGE_INTEGER moveSize;
         moveSize.QuadPart = value.size();
@@ -406,7 +426,7 @@ private:
     // 缓冲区的名称 一般与文件名相同
     str _name = "New Buffer";
     // 缓冲区所绑定的[FileIO]
-    FileIO _io = FileIO((str) _name);
+    FileIO _io = FileIO((str)_name);
 
     // 字符缓冲区
     std::vector<WCharList> text_buffer;
@@ -428,7 +448,10 @@ public:
         str filev = _io.read();
 
         std::string::size_type pos = std::max(_io.getpath().find_last_of('\\') + 1, _io.getpath().find_last_of('/') + 1);
-        _name = _io.getpath().substr(pos, _io.getpath().length() - pos);
+        str new_name = _io.getpath().substr(pos, _io.getpath().length() - pos);
+
+        if (new_name != "")
+            _name = new_name;
 
         text_buffer.clear();
 
@@ -524,20 +547,18 @@ void exit_function key_function command_parser(Buffer &buf, std::wstring &comman
 {
     if (command == L"quit")
     {
-        if (!config._readonly)
-        {
-            buf.save();
-        }
-
         should_exit = true;
     }
 
     else if (command == L"save")
     {
-        if (!config._readonly)
-        {
-            buf.save();
-        }
+        buf.save();
+    }
+
+    else if (command == L"sq")
+    {
+        buf.save();
+        should_exit = true;
     }
 
     // 命令在解析之后清空
@@ -697,6 +718,9 @@ inline void update_buttom(Buffer &buf, bool move_mouse = true)
 
     std::wcout << bustr;
 
+    for (i = i + bustr.size(); i < config._width; i++)
+        std::wcout << ' ';
+
     std::wcout.flush();
 }
 
@@ -725,7 +749,7 @@ void print(Buffer &buf)
 
     std::vector<WCharList> &vec = buf.getbuffer();
 
-    const str name = (config._readonly) ? ("New Buffer") : buf.getname();
+    const str name = buf.getname();
 
     // TOP
     for (int i = 0; i < (config._width - name.size()) / 2; i++)
@@ -789,7 +813,7 @@ inline void key_function add(Buffer &buf, int key)
 }
 
 /*
-编辑器的主体
+编辑器逻辑的主体
 */
 void exit_function tick_loop(Buffer &buf)
 {
@@ -837,9 +861,19 @@ void exit_function tick_loop(Buffer &buf)
             if (input_command)
             {
                 command_parser(buf, command);
+
+                input_command = false;
+                command_cur_y = 0;
+                command = L"";
+            }
+            else
+            {
+                input_command = true;
             }
 
-            input_command = !input_command;
+            update_buttom(buf);
+
+            return;
         }
         // 如果是特殊字符
         else
@@ -856,6 +890,8 @@ void exit_function tick_loop(Buffer &buf)
                     input_command = !input_command;
 
                     command_parser(buf, command);
+
+                    update_buttom(buf);
 
                     return;
                 }
@@ -1062,6 +1098,7 @@ void reset_console_size()
     config._width = csbi.dwSize.X;
     config._height = csbi.dwSize.Y;
 }
+
 /*
 程序的主入口
 */
@@ -1080,6 +1117,8 @@ int exit_function main(int argc, const char **argv)
 
     // 解析参数
     parse_args(argc, argv, config);
+
+    config._path = "./code.cpp";
 
     // 初始清空屏幕
     cls();
