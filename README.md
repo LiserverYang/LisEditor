@@ -22,16 +22,14 @@ This is a easy open-source text editor repository.
 
 <br>
 
-**./liseditor** **./a.cpp[FileName]** **-ro[readonly]**
-
-- Press key **CTRL + S** to save change.
+**./liseditor** **./a.cpp[FileName]** **-ro[readonly]** **-create[create file]**
 
 ## How do you do something for this project?
 
 **We welcome to get your contribution**, but we have to make a few requests.
 
-1. Your code style must be **same with this project**.
-2. Your contribution must be **useful**. Try not add bad code / contribution to here.
-3. **Try to make sure of your code is fine**.So that, the contributors hardly need fix your code.
+1. Your code style must be the **same as this project**.
+2. Your contribution must be **useful**. Try not add the bad code / contribution here.
+3. **Make sure that your code is soundness**.So that, the contributors hardly need to fix your code.
 
 Then, **we appreciate your contribution**!

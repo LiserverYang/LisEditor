@@ -7,6 +7,8 @@
  * @anchor Liserver-Yang
  */
 
+#pragma once
+
 #ifndef __RENDERER_H__
 #define __RENDERER_H__
 
@@ -14,7 +16,7 @@
 #include <string>
 
 /*
- * If you want to change the style, do here.
+ * If you want to change the style, here.
  * 如果你想要修改样式，在这里
  */
 #include "../style/style_template.h"
@@ -152,4 +154,4 @@ namespace Renderer
     void rend(std::vector<std::vector<PairWChar>> &buffer);
 }
 
-#endif
+#endif // __RENDERER_H__

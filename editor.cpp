@@ -13,7 +13,7 @@
  * O2优化应不影响程序正常运行
  *
  * C++ version: c++11 or more.
- * O2 does not change the application run.
+ * O2 does not change the application to run.
  *
  * @licence MIT
  * @anchor Liserver-Yang
@@ -23,6 +23,7 @@
 #error This is a c++ project.
 #endif
 
+#include <memory>
 #include <cmath>
 #include <locale>
 #include <vector>
@@ -33,15 +34,7 @@
 
 #include "renderer/renderer.h"
 
-#if ((__cplusplus == 201103L) || (__cplusplus == 201402L))
-#define _enabled_cvt_
-#endif
-
-#if (__cplusplus < 201103L)
-#define ThrowPermiss throw(NoPermissionsError)
-#else
-#define ThrowPermiss noexcept(false)
-#endif
+#include "command/factory.h"
 
 #if defined(_WIN32)
 #include <io.h>
@@ -105,23 +98,22 @@ void for_each(A begin, A end, B func)
 void cls(HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE))
 {
     COORD coordScreen = {0, 0}; /* 在这里我们将光标设置到正确的位置 */
-    int bSuccess;
     DWORD cCharsWritten;
     CONSOLE_SCREEN_BUFFER_INFO csbi; /* 来获取Buffer的数据 */
     DWORD dwConSize;                 /* 当前Buffer可以容纳的字符数目 */
     /* 获取当前Buffer可以容纳的字符数量 */
-    bSuccess = GetConsoleScreenBufferInfo(hConsole, &csbi);
+    GetConsoleScreenBufferInfo(hConsole, &csbi);
     dwConSize = csbi.dwSize.X * csbi.dwSize.Y;
     /* 使用空格填充整个屏幕 */
-    bSuccess = FillConsoleOutputCharacter(hConsole, (TCHAR)' ',
-                                          dwConSize, coordScreen, &cCharsWritten);
+    FillConsoleOutputCharacter(hConsole, (TCHAR)' ',
+                               dwConSize, coordScreen, &cCharsWritten);
     /* 获取当前文本属性 */
-    bSuccess = GetConsoleScreenBufferInfo(hConsole, &csbi);
+    GetConsoleScreenBufferInfo(hConsole, &csbi);
     /* 现在相应地设置Buffer的属性 */
-    bSuccess = FillConsoleOutputAttribute(hConsole, csbi.wAttributes,
-                                          dwConSize, coordScreen, &cCharsWritten);
+    FillConsoleOutputAttribute(hConsole, csbi.wAttributes,
+                               dwConSize, coordScreen, &cCharsWritten);
     /* 把光标放到（0, 0） */
-    bSuccess = SetConsoleCursorPosition(hConsole, coordScreen);
+    SetConsoleCursorPosition(hConsole, coordScreen);
 
     return;
 }
@@ -182,25 +174,6 @@ void parse_args(int argc, const char **argv, Configtion &config) noexcept
 }
 
 /*
-当[FileIO]的read/write函数尝试读取/写入，但是没有权限时抛出的错误
-*/
-class NoPermissionsError : public std::exception
-{
-private:
-    // 使错误抛出的文件路径
-    str _path = "";
-
-public:
-    NoPermissionsError(str path) : _path(path) {}
-
-    // 对std::exception类中virtual char const* what() const函数的实现
-    virtual const char *what() const noexcept
-    {
-        return ("File '" + _path + "' hasn't permissions to read/write").c_str();
-    }
-};
-
-/*
 一个对文件的输入/输出控制类，包含了基本的读与写，以及对于权限的判断
 */
 class FileIO
@@ -228,15 +201,11 @@ public:
 
         if (check() || !check() && config._create)
         {
-#ifdef _enabled_cvt_
             fileh = CreateFileW(std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().from_bytes(_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_DELETE | FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-#else
-            fileh = CreateFileW(to_wstr(_path).c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_DELETE | FILE_SHARE_WRITE | FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-#endif
             // 获取文件大小
             read_size();
         }
-        else if(!check())
+        else if (!check())
         {
             config._readonly = true;
         }
@@ -288,33 +257,26 @@ public:
     读取文件 返回字符串
     @exception NoPermissionsError
     */
-    str read() ThrowPermiss
+    str read() noexcept
     {
         if (-1 == access(_path.c_str(), 0) || error_io)
-        {
             return "";
-        }
 
         if (!has_readpers())
-        {
-            throw NoPermissionsError(_path);
-        }
-
-        if (size.HighPart > 0)
-        {
-            // 文件太大，无法一次性读取
             return "";
-        }
+
+        // 文件太大，无法一次性读取
+        if (size.HighPart > 0)
+            return "";
 
         DWORD fileSize32 = static_cast<DWORD>(size.LowPart);
         std::string content(fileSize32, '\0');
 
         DWORD bytesRead;
+
+        // 处理读取文件内容失败的情况
         if (!ReadFile(fileh, &content[0], fileSize32, &bytesRead, nullptr) || bytesRead != fileSize32)
-        {
-            // 处理读取文件内容失败的情况
             return "";
-        }
 
         return content;
     }
@@ -326,15 +288,13 @@ public:
     TODO Bugs waiting for fix!
     - Can not save the texts
     */
-    void write(str value) ThrowPermiss
+    void write(str value) noexcept
     {
         if (config._readonly || error_io)
             return;
 
         if (!has_writepers())
-        {
-            throw NoPermissionsError(_path);
-        }
+            return;
 
         SetFilePointer(fileh, 0, NULL, FILE_BEGIN);
 
@@ -373,28 +333,13 @@ bool operator!=(PairWChar a, PairWChar b)
 }
 
 /*
-比较两个待输出行是否相等
-*/
-inline bool operator==(WCharList &lef, WCharList &rit)
-{
-    return lef.begin() == rit.begin();
-}
-
-/*
-比较两个待输出行是否不等
-*/
-inline bool operator!=(WCharList &lef, WCharList &rit)
-{
-    return lef.begin() != rit.begin();
-}
-
-/*
 字符是否是中文
 */
 inline bool IsChineseChar(PairWChar ch)
 {
     return (ch.ch >= 0x4E00) && (ch.ch <= 0x9FA5);
 }
+
 /*
 输出一行
 */
@@ -536,29 +481,109 @@ public:
 // 是否处于命令模式
 bool input_command = false;
 // 输入的命令
-std::wstring command = L"";
+std::wstring command_inputed = L"";
 // 当前指向的y
 int command_cur_y = 0;
+
+class command_save : public command::command
+{
+public:
+    virtual int command_id() override {return 1;}
+
+    virtual void on_called(ContextManager& context, std::vector<std::wstring> &argments) override
+    {
+        context.get_by_id<Buffer>("buffer")->save();
+    }
+
+    virtual bool check(std::wstring command_name_str) override
+    {
+        return command_name_str == L"save";
+    }
+};
+
+class command_quit : public command::command
+{
+public:
+    virtual int command_id() override {return 2;}
+
+    virtual void on_called(ContextManager& context, std::vector<std::wstring> &argments) override
+    {
+        *(context.get_by_id<bool>("should_exit")) = true;
+    }
+
+    virtual bool check(std::wstring command_name_str) override
+    {
+        return command_name_str == L"quit";
+    }
+};
+
+class command_save_quit : public command::command
+{
+public:
+    virtual int command_id() override {return 3;}
+
+    virtual void on_called(ContextManager& context, std::vector<std::wstring> &argments) override
+    {
+        context.get_by_id<Buffer>("buffer")->save();
+        *(context.get_by_id<bool>("should_exit")) = true;
+    }
+
+    virtual bool check(std::wstring command_name_str) override
+    {
+        return command_name_str == L"sq";
+    }
+};
+
+void command::factory::init()
+{
+    regist_command(std::make_shared<command_save>());
+    regist_command(std::make_shared<command_quit>());
+    regist_command(std::make_shared<command_save_quit>());
+}
+
+std::vector<std::wstring> split(std::wstring& string)
+{
+    std::vector<std::wstring> result;
+    std::wstring tmp = L"";
+
+    for(int i = 0; i < string.size(); i++)
+    {
+        if (tmp[i] == L' ')
+        {
+            result.push_back(tmp);
+            tmp = L"";
+        }
+        else if(i == string.size() - 1)
+        {
+            tmp += string[i];
+            result.push_back(tmp);
+            tmp = L"";
+        }
+        else
+        {
+            tmp += string[i];
+        }
+    }
+
+    return result;
+}
 
 /*
 解析命令
 */
-void exit_function key_function command_parser(Buffer &buf, std::wstring &command)
+void exit_function key_function command_parser(std::wstring &command)
 {
-    if (command == L"quit")
-    {
-        should_exit = true;
-    }
+    std::vector<std::wstring> command_list = split(command);
 
-    else if (command == L"save")
+    if (!command_list.empty())
+    for(int i = 0; i < command::g_command_factory.list.size(); i++)
     {
-        buf.save();
-    }
+        if (command::g_command_factory.list[i]->check(command_list[0]))
+        {
+            command::g_command_factory.list[i]->on_called(context, command_list);
 
-    else if (command == L"sq")
-    {
-        buf.save();
-        should_exit = true;
+            break;
+        }
     }
 
     // 命令在解析之后清空
@@ -579,11 +604,6 @@ const int LEFT = -299;
 const int RIGHT = -301;
 
 const int DEL = -307;
-
-inline bool is_letter(int key)
-{
-    return key > 0;
-}
 
 /*
 获取输入 不堵塞、回显
@@ -703,14 +723,14 @@ inline void update_buttom(Buffer &buf, bool move_mouse = true)
 
     const int space_size = (input_command) ? ((config._width - bustr.size()) - 1) : ((config._width - bustr.size()) / 2);
 
-    if (command.size() != 0)
+    if (command_inputed.size() != 0)
     {
-        if (command.size() - 1 < space_size)
+        if (command_inputed.size() - 1 < space_size)
         {
-            std::wcout << command;
+            std::wcout << command_inputed;
         }
 
-        i = command.size();
+        i = command_inputed.size();
     }
 
     for (; i < space_size; i++)
@@ -844,7 +864,7 @@ void exit_function tick_loop(Buffer &buf)
         {
             if (input_command)
             {
-                command += (char)key;
+                command_inputed += (char)key;
                 command_cur_y++;
                 update_buttom(buf);
             }
@@ -860,11 +880,11 @@ void exit_function tick_loop(Buffer &buf)
         {
             if (input_command)
             {
-                command_parser(buf, command);
+                command_parser(command_inputed);
 
                 input_command = false;
                 command_cur_y = 0;
-                command = L"";
+                command_inputed = L"";
             }
             else
             {
@@ -889,7 +909,7 @@ void exit_function tick_loop(Buffer &buf)
                 {
                     input_command = !input_command;
 
-                    command_parser(buf, command);
+                    command_parser(command_inputed);
 
                     update_buttom(buf);
 
@@ -934,9 +954,9 @@ void exit_function tick_loop(Buffer &buf)
             case BACKSPACE: // BACKSPACE
                 if (input_command)
                 {
-                    if (command.size() > 0 && command_cur_y > 0)
+                    if (command_inputed.size() > 0 && command_cur_y > 0)
                     {
-                        command.erase(command.begin() + command_cur_y - 1);
+                        command_inputed.erase(command_inputed.begin() + command_cur_y - 1);
                         command_cur_y--;
                     }
 
@@ -1056,7 +1076,7 @@ void exit_function tick_loop(Buffer &buf)
             }
             break;
         case RIGHT: // RIGHT
-            if (input_command && command_cur_y < command.size())
+            if (input_command && command_cur_y < command_inputed.size())
                 command_cur_y++;
 
             if (y <= (tbuf[x].size() - 1) && tbuf[x].size() != 0)
@@ -1100,12 +1120,10 @@ void reset_console_size()
 }
 
 /*
-程序的主入口
+初始化
 */
-int exit_function main(int argc, const char **argv)
+void init()
 {
-    // Text editor
-
     // 关闭io同步减少渲染时间
     std::ios::sync_with_stdio(0);
     std::wios::sync_with_stdio(0);
@@ -1115,13 +1133,26 @@ int exit_function main(int argc, const char **argv)
     std::wcout.tie(nullptr);
     std::setlocale(LC_ALL, "chs");
 
+    // 获取屏幕宽高
+    reset_console_size();
+
+    // 初始化命令工厂
+    command::g_command_factory.init();
+}
+
+/*
+程序的主入口
+*/
+int exit_function main(int argc, const char **argv)
+{
+    // 初始化
+    init();
+
     // 解析参数
     parse_args(argc, argv, config);
 
     // 初始清空屏幕
     cls();
-    // 获取屏幕宽高
-    reset_console_size();
 
     // 创建buffer
     Buffer buf("New Buffer");
@@ -1129,6 +1160,10 @@ int exit_function main(int argc, const char **argv)
     // 第一次渲染输出。循环内渲染和输出是惰性的。第一次不输出可能会导致一段时间内没有文字
     Renderer::rend(buf.getbuffer());
     print(buf);
+
+    context.add_with_id(std::string("buffer"), &buf);
+    context.add_with_id("should_exit", &should_exit);
+    context.add_with_id("config", &config);
 
     // 开始主循环 主循环每次调用tick函数 直到通过命令退出
     while (!should_exit)
