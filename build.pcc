@@ -1,0 +1,25 @@
+platform(["windows"]);
+project("LisEditor");
+
+set("output_dir", "./build");
+set("source_dir", "./src");
+set("cpp_version", "11");
+
+set("files", deep_search_files(${source_dir}, ".cpp"));
+set("arguments", ["-I", ${source_dir}]);
+
+if (${debug})
+{
+    append("arguments", ["-O0", "-D__DEBUG", "-g"])
+}
+else
+{
+    append("arguments", ["-O3"])
+};
+
+if (need_update(${files}, add(${output_dir}, add("/", ${project_name}))))
+{
+    compile_execute(${project_name}, ${output_dir}, ${files}, ${arguments})
+};
+
+print("Build done.")

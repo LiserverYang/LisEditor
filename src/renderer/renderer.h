@@ -21,6 +21,8 @@
  */
 #include "../style/style_template.h"
 
+#include <iostream>
+
 const wchar_t Keyword[][69] = {
     L"asm",
     L"do",
@@ -144,7 +146,35 @@ public:
     }
 };
 
-#define DELAY_TIME 1000
+// 定义待输出行/缓冲行
+using WCharList = std::vector<PairWChar>;
+
+/*
+比较两个待输出字符是否相等
+*/
+bool operator==(PairWChar a, PairWChar b);
+
+/*
+比较两个待输出字符是否不相等
+*/
+bool operator!=(PairWChar a, PairWChar b);
+
+/*
+字符是否是中文
+*/
+bool IsChineseChar(PairWChar ch);
+
+/*
+输出一行
+*/
+void output(WCharList list, WCharList::size_type begin, WCharList::size_type end);
+
+/*
+删除位置上某个字符
+*/
+void remove(WCharList &list, WCharList::size_type pos);
+
+
 
 namespace Renderer
 {

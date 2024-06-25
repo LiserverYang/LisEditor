@@ -8,6 +8,7 @@
 #include <string>
 
 #include "../context/context.h"
+#include "../core/definetion.h"
 
 namespace command
 {
@@ -26,21 +27,15 @@ namespace command
 
         void init();
 
-        void regist_command(std::shared_ptr<command> com)
-        {
-            for(int i = 0; i < list.size(); i++)
-            {
-                if (list[i]->command_id() == com->command_id())
-                {
-                    return;
-                }
-            }
-
-            list.push_back(com);
-        }
+        void regist_command(std::shared_ptr<command> com);
     };
 
-    factory g_command_factory;
+    extern factory g_command_factory;
 };
+
+/*
+解析命令
+*/
+void command_parser(std::wstring &command);
 
 #endif

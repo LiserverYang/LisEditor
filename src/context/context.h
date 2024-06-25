@@ -27,6 +27,6 @@ public:
     }
 };
 
-ContextManager context;
+extern ContextManager context;
 
 #endif

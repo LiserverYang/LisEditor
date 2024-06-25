@@ -9,9 +9,6 @@
 
 #pragma once
 
-/*
- * __FILENAME_H___
- */
 #ifndef __STYLE_TEMPLATE_H__
 #define __STYLE_TEMPLATE_H__
 

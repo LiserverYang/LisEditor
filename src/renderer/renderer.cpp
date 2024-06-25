@@ -11,6 +11,8 @@
 
 #include <time.h>
 
+const int DELAY_TIME = 1000;
+
 bool is_keyword(std::wstring str)
 {
     for (int i = 0; i < (int)sizeof(Keyword) / (int)sizeof(Keyword[0]); i++)
@@ -39,6 +41,34 @@ bool is_char(wchar_t c)
 bool is_number(wchar_t c)
 {
     return c >= L'0' && c <= L'9';
+}
+
+bool operator==(PairWChar a, PairWChar b)
+{
+    return (a.ch == b.ch);
+}
+
+bool operator!=(PairWChar a, PairWChar b)
+{
+    return (a.ch != b.ch);
+}
+
+bool IsChineseChar(PairWChar ch)
+{
+    return (ch.ch >= 0x4E00) && (ch.ch <= 0x9FA5);
+}
+
+void output(WCharList list, WCharList::size_type begin, WCharList::size_type end)
+{
+    for (WCharList::size_type i = begin; i < end; i++)
+    {
+        std::wcout << L"\033[" << list[i].cl << L"m" << (wchar_t)list[i].ch << L"\033[0m";
+    }
+}
+
+void remove(WCharList &list, WCharList::size_type pos)
+{
+    list.erase(list.begin() + pos);
 }
 
 /*

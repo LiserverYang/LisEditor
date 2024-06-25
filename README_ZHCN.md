@@ -6,9 +6,11 @@
 
 ## 构建
 
+你需要首先下载LisBuilder。LiserverYang/LisBuilder
+
 - Windows:
     ```shell
-    .\\build.cmd
+    LisBuilder [-debug]
     ```
 
 - MacOS or Linux:

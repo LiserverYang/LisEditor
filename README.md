@@ -8,9 +8,11 @@ This is a easy open-source text editor repository.
 
 ## Build
 
+You need to download LisBuilder first. LiserverYang/LisBuilder
+
 - Windows:
     ```shell
-    .\\build.cmd
+    LisBuilder [-debug]
     ```
 
 - MacOS or Linux:
